@@ -6,8 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.util.Base64
-import android.view.View
+import android.util.Log
 import android.webkit.*
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -288,15 +287,7 @@ class MainActivity : ComponentActivity() {
                                         userAgentString = "$userAgentString OpenClawApp/1.0 Android/${android.os.Build.VERSION.SDK_INT}"
                                     }
 
-                                    // Clear cookies
-                                    CookieManager.getInstance().apply {
-                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                                            flush()
-                                        } else {
-                                            @Suppress("DEPRECATION")
-                                            acceptThirdPartyCookies(webView)
-                                        }
-                                    }
+                                    // Cookies handled automatically
 
                                     webViewClient = ChatWebViewClient(
                                         onPageLoaded = { loaded ->
@@ -409,7 +400,7 @@ class MainActivity : ComponentActivity() {
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                HorizontalDivider()
+                                Divider()
                                 Text("文件上传 (SCP)", style = MaterialTheme.typography.labelMedium)
                                 OutlinedTextField(
                                     value = sshHost,
