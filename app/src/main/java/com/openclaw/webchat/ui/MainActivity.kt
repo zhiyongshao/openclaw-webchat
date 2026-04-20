@@ -302,6 +302,9 @@ fun MainScreen(
     var isUploading by remember { mutableStateOf(false) }
     var uploadProgress by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var currentUrl by remember { mutableStateOf("") }
+    var pageTitle by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -413,12 +416,25 @@ fun MainScreen(
                         webViewClient = ChatWebViewClient(
                             onPageLoaded = { loaded ->
                                 isPageLoaded = loaded
+                                isLoading = false
                                 errorMessage = null
                             },
                             onError = { err ->
                                 errorMessage = err
+                                isLoading = false
+                            },
+                            onPageStarted = { url ->
+                                isLoading = true
+                                currentUrl = url ?: ""
                             }
                         )
+
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onReceivedTitle(view: WebView?, title: String?) {
+                                super.onReceivedTitle(view, title)
+                                pageTitle = title ?: ""
+                            }
+                        }
 
                         addJavascriptInterface(object {
                             @android.webkit.JavascriptInterface
@@ -427,6 +443,10 @@ fun MainScreen(
                             }
                             @android.webkit.JavascriptInterface
                             fun getToken(): String = preferencesManager.getToken()
+                            @android.webkit.JavascriptInterface
+                            fun log(msg: String) {
+                                Log.d("OpenClawApp", msg)
+                            }
                         }, "OpenClawApp")
 
                         loadUrl(serverUrl)
@@ -436,8 +456,26 @@ fun MainScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
+            // Debug info bar
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(
+                        text = if (isLoading) "加载中: $currentUrl"
+                               else if (isPageLoaded) "已加载: ${pageTitle.ifEmpty { currentUrl }}"
+                               else "等待加载: $serverUrl",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             // Loading overlay
-            if (!isPageLoaded) {
+            if (!isPageLoaded && !errorMessage.isNullOrEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
