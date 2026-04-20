@@ -81,9 +81,6 @@ dependencies {
     // JSch for SCP file upload
     implementation("com.github.mwiede:jsch:0.2.18")
 
-    // Permissions
-    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
-
     // DataStore for preferences
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 

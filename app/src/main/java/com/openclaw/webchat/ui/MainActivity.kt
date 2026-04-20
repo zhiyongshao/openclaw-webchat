@@ -30,9 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
+
 import com.openclaw.webchat.notification.ConnectionService
 import com.openclaw.webchat.R
 import com.openclaw.webchat.upload.FileUploadManager
@@ -41,7 +39,7 @@ import com.openclaw.webchat.voice.VoiceInputManager
 import com.openclaw.webchat.web.ChatWebViewClient
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
 
     private lateinit var preferencesManager: PreferencesManager
@@ -60,8 +58,9 @@ class MainActivity : ComponentActivity() {
         fileUploadManager = FileUploadManager()
         voiceInputManager = VoiceInputManager(this)
 
-        createNotificationChannel()
-        startConnectionService()
+        // Disabled: foreground service causes crash on some devices
+        // createNotificationChannel()
+        // startConnectionService()
 
         setContent {
             var showSettings by remember { mutableStateOf(serverUrl.isEmpty()) }
@@ -72,9 +71,9 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
 
-            val micPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
-            val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
-            val storagePermission = rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
+            val micGranted = remember { mutableStateOf(
+                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            )
 
             // Load saved server URL
             LaunchedEffect(Unit) {
@@ -122,6 +121,7 @@ class MainActivity : ComponentActivity() {
             val voicePermissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission()
             ) { granted ->
+                micGranted.value = granted
                 if (granted) {
                     voiceInputManager.startListening { text ->
                         webViewRef?.evaluateJavascript(
@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
                             // Voice input FAB
                             FloatingActionButton(
                                 onClick = {
-                                    if (micPermission.status.isGranted) {
+                                    if (micGranted.value) {
                                         voiceInputManager.startListening { text ->
                                             webViewRef?.evaluateJavascript(
                                                 "window.dispatchEvent(new CustomEvent('voice-input', {detail: {text: '$text'}}))",
