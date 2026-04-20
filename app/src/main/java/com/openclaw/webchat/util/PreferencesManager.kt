@@ -68,11 +68,29 @@ class PreferencesManager(context: Context) {
         prefs.edit().putString(KEY_SSH_PASSWORD, password).apply()
     }
 
+    fun saveSSHConfig(host: String, port: Int, user: String, password: String) {
+        prefs.edit()
+            .putString(KEY_SSH_HOST, host)
+            .putInt(KEY_SSH_PORT, port)
+            .putString(KEY_SSH_USER, user)
+            .putString(KEY_SSH_PASSWORD, password)
+            .apply()
+    }
+
+    fun getToken(): String {
+        return prefs.getString(KEY_TOKEN, "") ?: ""
+    }
+
+    fun saveToken(token: String) {
+        prefs.edit().putString(KEY_TOKEN, token).apply()
+    }
+
     companion object {
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_SSH_HOST = "ssh_host"
         private const val KEY_SSH_PORT = "ssh_port"
         private const val KEY_SSH_USER = "ssh_user"
         private const val KEY_SSH_PASSWORD = "ssh_password"
+        private const val KEY_TOKEN = "token"
     }
 }
