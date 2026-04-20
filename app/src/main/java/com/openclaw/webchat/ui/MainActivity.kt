@@ -20,8 +20,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.clickable
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -446,12 +445,12 @@ fun MainScreen(
                                 super.onReceivedTitle(view, title)
                                 pageTitle = title ?: ""
                             }
-                            override fun onConsoleMessage(view: WebView?, message: ConsoleMessage?): Boolean {
-                                Log.d(TAG, "WebView console: ${message?.message()} [${message?.messageLevel()}] at ${message?.sourceId()}:${message?.lineNumber()}")
-                                if (message?.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
-                                    Log.e(TAG, "JS ERROR: ${message.message()} at ${message.sourceId()}:${message.lineNumber()}")
+                            override fun onConsoleMessage(message: String?, messageFrom: String?, lineNumber: Int): Boolean {
+                                Log.d("MainActivity", "WebView console: $message [$messageFrom:$lineNumber]")
+                                if (message != null && messageFrom != null) {
+                                    Log.e("MainActivity", "JS ERROR: $message at $messageFrom:$lineNumber")
                                 }
-                                return super.onConsoleMessage(view, message)
+                                return true
                             }
                         }
 
@@ -525,9 +524,7 @@ fun MainScreen(
                                 webViewRef?.evaluateJavascript(
                                     "(function(){var b=document.body;return b?b.innerHTML.substring(0,500):'no-body';})();",
                                     null
-                                ) { html ->
-                                    Toast.makeText(context, "HTML片段: $html", Toast.LENGTH_LONG).show()
-                                }
+                                )
                                 showDebugDialog = false
                             }) {
                                 Text("获取页面HTML")
