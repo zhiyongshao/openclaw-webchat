@@ -416,12 +416,18 @@ fun MainScreen(
                             useWideViewPort = true
                             builtInZoomControls = false
                             displayZoomControls = false
-                            // Desktop-like UA to get full page content
+                            // Desktop-like UA
                             userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
                                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                             }
                             setCacheMode(WebSettings.LOAD_DEFAULT)
+                            // Enable cookies for session persistence
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                acceptThirdPartyCookies(webView)
+                            } else {
+                                CookieManager.getInstance().setAcceptCookie(true)
+                            }
                         }
 
                         val chatClient = ChatWebViewClient(object : ChatWebViewCallback {
@@ -465,7 +471,15 @@ fun MainScreen(
                             }
                         }, "OpenClawApp")
 
-                        loadUrl(serverUrl)
+                        // Load URL with token as query param if token is saved
+                        val savedToken = preferencesManager.getToken()
+                        val fullUrl = if (savedToken.isNotEmpty()) {
+                            val base = serverUrl.trimEnd('/')
+                            "$base?token=$savedToken"
+                        } else {
+                            serverUrl
+                        }
+                        loadUrl(fullUrl)
                         webViewRef = this
                     }
                 },
@@ -509,24 +523,24 @@ fun MainScreen(
                     onDismissRequest = { showDebugDialog = false },
                     title = { Text("页面调试信息") },
                     text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("标题: $pageTitle")
-                            Text("URL: $currentUrl")
-                            Text("已加载: $isPageLoaded")
-                            Text("JS错误: $jsErrorLog")
-                            Button(onClick = {
-                                webViewRef?.evaluateJavascript(
-                                    "(function(){var b=document.body;return b?b.innerHTML.substring(0,500):'no-body';})();",
-                                    null
-                                )
-                                showDebugDialog = false
-                            }) {
-                                Text("获取页面HTML")
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("标题: $pageTitle", style = MaterialTheme.typography.bodyMedium)
+                            HorizontalDivider()
+                            Text("URL: $currentUrl", style = MaterialTheme.typography.bodySmall)
+                            Text("页面已加载: $isPageLoaded", style = MaterialTheme.typography.bodySmall)
+                            if (jsErrorLog.isNotEmpty()) {
+                                Text("JS错误: $jsErrorLog", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                             }
-                            Button(onClick = {
-                                webViewRef?.reload()
-                                showDebugDialog = false
-                            }) {
+                            HorizontalDivider()
+                            Button(
+                                onClick = {
+                                    showDebugDialog = false
+                                    webViewRef?.reload()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Refresh, null)
+                                Spacer(Modifier.width(8.dp))
                                 Text("刷新页面")
                             }
                         }
