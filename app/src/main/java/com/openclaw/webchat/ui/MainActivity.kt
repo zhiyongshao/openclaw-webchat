@@ -402,11 +402,14 @@ fun MainScreen(
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
+                            databaseEnabled = true
                             mediaPlaybackRequiresUserGesture = false
                             loadWithOverviewMode = true
                             useWideViewPort = true
                             builtInZoomControls = false
                             displayZoomControls = false
+                            // Desktop-like UA to get full page content
+                            userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
                                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                             }
