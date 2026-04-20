@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow cleartext for local network access (OpenClaw server) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">172.16.3.16</domain>
+        <domain includeSubdomains="true">vpn.mmuo.com.cn</domain>
+    </domain-config>
+</network-security-config>
