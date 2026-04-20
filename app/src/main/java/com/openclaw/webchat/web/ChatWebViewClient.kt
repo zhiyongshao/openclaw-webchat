@@ -19,28 +19,25 @@ class ChatWebViewClient(private val callback: ChatWebViewCallback) {
             Log.d(TAG, "Page finished: $url")
 
             view?.let { wv ->
+                // Wait for JS to fully render, then check content
                 wv.postDelayed({
                     wv.evaluateJavascript(
                         "(function(){" +
                         "try{" +
-                        "var s=document.createElement('style');" +
-                        "s.id='oc-mobile';" +
-                        "s.textContent='*{font-size:max(16px,1.2vw)!important;box-sizing:border-box}" +
-                        "html,body{-webkit-text-size-adjust:100%;overflow-x:hidden}" +
-                        "input,textarea{font-size:18px!important;padding:12px!important}" +
-                        "button{min-height:48px!important;padding:12px 24px!important}" +
-                        "img,video{max-width:100%!important;height:auto!important}" +
-                        "iframe{border:none}';" +
-                        "if(!document.getElementById('oc-mobile'))document.head.appendChild(s);" +
-                        "var t=document.title||'';" +
-                        "var b=document.body?(document.body.innerHTML.length+'chars'):'no-body';" +
-                        "window.OpenClawApp&&window.OpenClawApp.log('Ready:'+t+' body:'+b);" +
-                        "window.dispatchEvent(new CustomEvent('oc-ready'));" +
-                        "}catch(e){window.OpenClawApp&&window.OpenClawApp.log('Err:'+e.message);}" +
+                        // Capture any JS errors\n"                        "window.onerror = function(msg,src,line){" +
+                        "window.OpenClawApp&&window.OpenClawApp.onJsError(msg+' at '+src+':'+line);" +
+                        "return false;" +
+                        "};" +
+                        // Check DOM state\n"                        "var body = document.body;" +
+                        "var children = body ? body.children.length : 0;" +
+                        "var innerHTML = body ? body.innerHTML.length : 0;" +
+                        "var title = document.title || 'no-title';" +
+                        "window.OpenClawApp&&window.OpenClawApp.log('DOM: children='+children+' htmlLen='+innerHTML+' title='+title);" +
+                        "}catch(e){window.OpenClawApp&&window.OpenClawApp.onJsError(e.message);}" +
                         "})();",
                         null
                     )
-                }, 1500)
+                }, 2000)
             }
 
             callback.onPageLoaded(true)

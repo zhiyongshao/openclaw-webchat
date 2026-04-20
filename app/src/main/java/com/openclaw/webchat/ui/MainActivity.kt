@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.clickable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -35,6 +36,10 @@ import com.openclaw.webchat.web.ChatWebViewClient
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var fileUploadManager: FileUploadManager
@@ -306,6 +311,8 @@ fun MainScreen(
     var currentUrl by remember { mutableStateOf("") }
     var pageTitle by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var jsErrorLog by remember { mutableStateOf("") }
+    var showDebugDialog by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -439,6 +446,13 @@ fun MainScreen(
                                 super.onReceivedTitle(view, title)
                                 pageTitle = title ?: ""
                             }
+                            override fun onConsoleMessage(view: WebView?, message: ConsoleMessage?): Boolean {
+                                Log.d(TAG, "WebView console: ${message?.message()} [${message?.messageLevel()}] at ${message?.sourceId()}:${message?.lineNumber()}")
+                                if (message?.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                                    Log.e(TAG, "JS ERROR: ${message.message()} at ${message.sourceId()}:${message.lineNumber()}")
+                                }
+                                return super.onConsoleMessage(view, message)
+                            }
                         }
 
                         addJavascriptInterface(object {
@@ -452,6 +466,10 @@ fun MainScreen(
                             fun log(msg: String) {
                                 Log.d("OpenClawApp", msg)
                             }
+                            @android.webkit.JavascriptInterface
+                            fun onJsError(msg: String) {
+                                Log.e("OpenClawApp", "JS Error: $msg")
+                            }
                         }, "OpenClawApp")
 
                         loadUrl(serverUrl)
@@ -461,11 +479,12 @@ fun MainScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Debug info bar
+            // Debug info bar (click to show page info)
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .then(Modifier.clickable { showDebugDialog = true }),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
@@ -476,7 +495,57 @@ fun MainScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (jsErrorLog.isNotEmpty()) {
+                        Text(
+                            text = "JS错误: $jsErrorLog",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Text(
+                        text = "点击查看页面信息",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
                 }
+            }
+
+            // Debug dialog
+            if (showDebugDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDebugDialog = false },
+                    title = { Text("页面调试信息") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("标题: $pageTitle")
+                            Text("URL: $currentUrl")
+                            Text("已加载: $isPageLoaded")
+                            Text("JS错误: $jsErrorLog")
+                            Button(onClick = {
+                                webViewRef?.evaluateJavascript(
+                                    "(function(){var b=document.body;return b?b.innerHTML.substring(0,500):'no-body';})();",
+                                    null
+                                ) { html ->
+                                    Toast.makeText(context, "HTML片段: $html", Toast.LENGTH_LONG).show()
+                                }
+                                showDebugDialog = false
+                            }) {
+                                Text("获取页面HTML")
+                            }
+                            Button(onClick = {
+                                webViewRef?.reload()
+                                showDebugDialog = false
+                            }) {
+                                Text("刷新页面")
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showDebugDialog = false }) {
+                            Text("关闭")
+                        }
+                    }
+                )
             }
 
             // Loading overlay
