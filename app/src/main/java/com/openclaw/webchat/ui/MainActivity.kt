@@ -41,7 +41,7 @@ import com.openclaw.webchat.voice.VoiceInputManager
 import com.openclaw.webchat.web.ChatWebViewClient
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
 
     private lateinit var preferencesManager: PreferencesManager
