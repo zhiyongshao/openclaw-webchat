@@ -428,7 +428,7 @@ fun MainScreen(
                             },
                             onPageStarted = { url ->
                                 isLoading = true
-                                currentUrl = url ?: ""
+                                currentUrl = url
                             }
                         )
 

@@ -5,8 +5,8 @@ import android.webkit.*
 
 class ChatWebViewClient(
     private val onPageLoaded: (Boolean) -> Unit,
-    private val onError: ((String) -> Unit)? = null,
-    private val onPageStarted: ((String) -> Unit)? = null
+    private val onError: ((String) -> Unit),
+    private val onPageStarted: ((String) -> Unit)
 ) : WebViewClient() {
 
     companion object {
@@ -16,7 +16,7 @@ class ChatWebViewClient(
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
         super.onPageStarted(view, url)
         Log.d(TAG, "Page started: $url")
-        onPageStarted?.invoke(url ?: "")
+        onPageStarted(url ?: "")
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
@@ -63,7 +63,7 @@ class ChatWebViewClient(
         if (request?.isForMainFrame == true) {
             val msg = error?.description?.toString() ?: "Unknown error"
             Log.e(TAG, "WebView error: $msg")
-            onError?.invoke(msg)
+            onError(msg)
         }
     }
 }
