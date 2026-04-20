@@ -422,12 +422,13 @@ fun MainScreen(
                                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                             }
                             setCacheMode(WebSettings.LOAD_DEFAULT)
-                            // Enable cookies for session persistence
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                                acceptThirdPartyCookies(webView)
-                            } else {
-                                CookieManager.getInstance().setAcceptCookie(true)
-                            }
+                        }
+
+                        // Enable cookies for session persistence
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                            WebView.setAcceptThirdPartyCookies(this, true)
+                        } else {
+                            CookieManager.getInstance().setAcceptCookie(true)
                         }
 
                         val chatClient = ChatWebViewClient(object : ChatWebViewCallback {
