@@ -2,12 +2,10 @@ package com.openclaw.webchat.web
 
 import android.util.Log
 import android.webkit.*
-import android.view.View
 
 class ChatWebViewClient(
     private val onPageLoaded: (Boolean) -> Unit,
-    private val onError: ((String) -> Unit)? = null,
-    private val onTokenNeeded: (() -> Unit)? = null
+    private val onError: ((String) -> Unit)? = null
 ) : WebViewClient() {
 
     companion object {
