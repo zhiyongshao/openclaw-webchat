@@ -425,11 +425,7 @@ fun MainScreen(
                         }
 
                         // Enable cookies for session persistence
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                            WebView.setAcceptThirdPartyCookies(this, true)
-                        } else {
-                            CookieManager.getInstance().setAcceptCookie(true)
-                        }
+                        CookieManager.getInstance().setAcceptCookie(true)
 
                         val chatClient = ChatWebViewClient(object : ChatWebViewCallback {
                             override fun onPageLoaded(success: Boolean) {
