@@ -26,16 +26,6 @@ jobs:
           chmod +x gradlew
           ./gradlew wrapper --gradle-version=8.4
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
       - name: Build debug APK
         run: |
           ./gradlew assembleDebug --no-daemon 2>&1
