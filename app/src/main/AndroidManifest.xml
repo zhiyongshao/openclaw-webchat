@@ -46,11 +46,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Foreground service for persistent connection -->
-        <service
-            android:name=".notification.ConnectionService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
+
 
     </application>
 
