@@ -446,13 +446,6 @@ fun MainScreen(
                                 super.onReceivedTitle(view, title)
                                 pageTitle = title ?: ""
                             }
-                            override fun onConsoleMessage(message: String?, messageFrom: String?, lineNumber: Int): Boolean {
-                                Log.d("MainActivity", "WebView console: $message [$messageFrom:$lineNumber]")
-                                if (message != null && messageFrom != null) {
-                                    Log.e("MainActivity", "JS ERROR: $message at $messageFrom:$lineNumber")
-                                }
-                                return true
-                            }
                         }
 
                         addJavascriptInterface(object {
