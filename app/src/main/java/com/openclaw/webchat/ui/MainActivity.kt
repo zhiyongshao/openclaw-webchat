@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat
 import com.openclaw.webchat.upload.FileUploadManager
 import com.openclaw.webchat.util.PreferencesManager
 import com.openclaw.webchat.voice.VoiceInputManager
+import com.openclaw.webchat.web.ChatWebViewCallback
 import com.openclaw.webchat.web.ChatWebViewClient
 import kotlinx.coroutines.launch
 
@@ -416,21 +417,21 @@ fun MainScreen(
                             setCacheMode(WebSettings.LOAD_DEFAULT)
                         }
 
-                        webViewClient = ChatWebViewClient(
-                            onPageLoaded = { loaded ->
-                                isPageLoaded = loaded
+                        webViewClient = ChatWebViewClient(object : ChatWebViewCallback {
+                            override fun onPageLoaded(success: Boolean) {
+                                isPageLoaded = success
                                 isLoading = false
                                 errorMessage = null
-                            },
-                            onError = { err ->
-                                errorMessage = err
+                            }
+                            override fun onError(message: String) {
+                                errorMessage = message
                                 isLoading = false
-                            },
-                            onPageStarted = { url ->
+                            }
+                            override fun onPageStarted(url: String) {
                                 isLoading = true
                                 currentUrl = url
                             }
-                        )
+                        })
 
                         webChromeClient = object : WebChromeClient() {
                             override fun onReceivedTitle(view: WebView?, title: String?) {

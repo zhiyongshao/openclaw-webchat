@@ -3,11 +3,13 @@ package com.openclaw.webchat.web
 import android.util.Log
 import android.webkit.*
 
-class ChatWebViewClient(
-    private val onPageLoaded: (Boolean) -> Unit,
-    private val onError: ((String) -> Unit),
-    private val onPageStarted: ((String) -> Unit)
-) : WebViewClient() {
+interface ChatWebViewCallback {
+    fun onPageLoaded(success: Boolean)
+    fun onError(message: String)
+    fun onPageStarted(url: String)
+}
+
+class ChatWebViewClient(private val callback: ChatWebViewCallback) : WebViewClient() {
 
     companion object {
         private const val TAG = "ChatWebViewClient"
@@ -16,7 +18,7 @@ class ChatWebViewClient(
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
         super.onPageStarted(view, url)
         Log.d(TAG, "Page started: $url")
-        onPageStarted(url ?: "")
+        callback.onPageStarted(url ?: "")
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
@@ -48,7 +50,7 @@ class ChatWebViewClient(
             }, 1500)
         }
 
-        onPageLoaded(true)
+        callback.onPageLoaded(true)
     }
 
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -63,7 +65,7 @@ class ChatWebViewClient(
         if (request?.isForMainFrame == true) {
             val msg = error?.description?.toString() ?: "Unknown error"
             Log.e(TAG, "WebView error: $msg")
-            onError(msg)
+            callback.onError(msg)
         }
     }
 }
