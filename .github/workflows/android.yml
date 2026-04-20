@@ -2,9 +2,9 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
-    branches: [main]
+    branches: [master, main]
   workflow_dispatch:
 
 jobs:
@@ -23,7 +23,6 @@ jobs:
 
       - name: Setup Gradle
         run: |
-          cd app
           chmod +x gradlew
           ./gradlew wrapper --gradle-version=8.4
 
@@ -39,7 +38,6 @@ jobs:
 
       - name: Build debug APK
         run: |
-          cd app
           ./gradlew assembleDebug --no-daemon 2>&1
 
       - name: Upload APK
@@ -50,13 +48,12 @@ jobs:
           retention-days: 30
 
       - name: Build release APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
-          cd app
           ./gradlew assembleRelease --no-daemon 2>&1
 
       - name: Upload release APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: actions/upload-artifact@v4
         with:
           name: openclaw-webchat-release
