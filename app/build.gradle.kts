@@ -90,6 +90,9 @@ dependencies {
     // Encrypted SharedPreferences
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Fix R8 missing error_prone_annotations
+    implementation("com.google.errorprone:error_prone_annotations:2.27.0")
+
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
