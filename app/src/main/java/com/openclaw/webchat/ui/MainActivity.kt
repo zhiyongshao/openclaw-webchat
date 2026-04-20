@@ -417,7 +417,7 @@ fun MainScreen(
                             setCacheMode(WebSettings.LOAD_DEFAULT)
                         }
 
-                        webViewClient = ChatWebViewClient(object : ChatWebViewCallback {
+                        val chatClient = ChatWebViewClient(object : ChatWebViewCallback {
                             override fun onPageLoaded(success: Boolean) {
                                 isPageLoaded = success
                                 isLoading = false
@@ -432,6 +432,7 @@ fun MainScreen(
                                 currentUrl = url
                             }
                         })
+                        webViewClient = chatClient.webViewClient
 
                         webChromeClient = object : WebChromeClient() {
                             override fun onReceivedTitle(view: WebView?, title: String?) {
