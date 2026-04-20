@@ -296,9 +296,6 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onError = { err ->
                                             errorMessage = err
-                                        },
-                                        onTokenNeeded = {
-                                            tokenInput = "pending"
                                         }
                                     )
 
