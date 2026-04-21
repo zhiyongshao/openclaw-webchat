@@ -21,6 +21,11 @@ class ChatWebViewClient(private val callback: ChatWebViewCallback) {
             view?.let { wv ->
                 // Wait for JS + CSS to fully render (increased delay)
                 wv.postDelayed({
+                    // Fix blank screen: body/shell have height=0px — inject viewport height CSS
+                    wv.evaluateJavascript(
+                        "(function(){var s=document.createElement('style');s.textContent='html,body,.shell,.shell--chat{height:100%!important;min-height:100vh!important;overflow:hidden!important}';document.head.appendChild(s);})();",
+                        null
+                    )
                     wv.evaluateJavascript(
                         "(function(){" +
                         "var errHandler = function(msg,src,line){" +
