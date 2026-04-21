@@ -409,6 +409,8 @@ fun MainScreen(
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
+                        // Enable hardware acceleration for better CSS rendering
+                        setLayerType(WebView.LAYER_TYPE_HARDWARE, null)
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
