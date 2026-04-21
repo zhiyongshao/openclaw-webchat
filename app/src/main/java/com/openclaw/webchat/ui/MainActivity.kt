@@ -493,36 +493,36 @@ fun MainScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Debug info bar (click to show page info)
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .then(Modifier.clickable { showDebugDialog = true }),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
-            ) {
-                Column(modifier = Modifier.padding(8.dp)) {
-                    Text(
-                        text = if (isLoading) "加载中: $currentUrl"
-                               else if (isPageLoaded) "已加载: ${pageTitle.ifEmpty { currentUrl }}"
-                               else "等待加载: $serverUrl",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (jsErrorLog.isNotEmpty()) {
-                        Text(
-                            text = "JS错误: $jsErrorLog",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                    Text(
-                        text = "点击查看页面信息",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-            }
+//             // Debug info bar (click to show page info)
+//             Surface(
+//                 modifier = Modifier
+//                     .align(Alignment.BottomCenter)
+//                     .fillMaxWidth()
+//                     .then(Modifier.clickable { showDebugDialog = true }),
+//                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+//             ) {
+//                 Column(modifier = Modifier.padding(8.dp)) {
+//                     Text(
+//                         text = if (isLoading) "加载中: $currentUrl"
+//                                else if (isPageLoaded) "已加载: ${pageTitle.ifEmpty { currentUrl }}"
+//                                else "等待加载: $serverUrl",
+//                         style = MaterialTheme.typography.bodySmall,
+//                         color = MaterialTheme.colorScheme.onSurfaceVariant
+//                     )
+//                     if (jsErrorLog.isNotEmpty()) {
+//                         Text(
+//                             text = "JS错误: $jsErrorLog",
+//                             style = MaterialTheme.typography.bodySmall,
+//                             color = MaterialTheme.colorScheme.error
+//                         )
+//                     }
+//                     Text(
+//                         text = "点击查看页面信息",
+//                         style = MaterialTheme.typography.labelSmall,
+//                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+//                     )
+//                 }
+//             }
 
             // Debug dialog
             if (showDebugDialog) {
