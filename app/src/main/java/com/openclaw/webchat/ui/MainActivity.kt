@@ -432,6 +432,13 @@ fun MainScreen(
                                 isPageLoaded = success
                                 isLoading = false
                                 errorMessage = null
+                                // Inject token into localStorage on page load
+                                val token = preferencesManager.getToken()
+                                if (success && token.isNotEmpty() && webViewRef != null) {
+                                    webViewRef?.evaluateJavascript(
+                                        "try { localStorage.setItem('token', '$token'); localStorage.setItem('openclaw_token', '$token'); } catch(e) { console.log('token inject err: ' + e); } "
+                                    ) { Log.d(TAG, "Token injected: $it") }
+                                }
                             }
                             override fun onError(message: String) {
                                 errorMessage = message
@@ -468,15 +475,8 @@ fun MainScreen(
                             }
                         }, "OpenClawApp")
 
-                        // Load URL with token as query param if token is saved
-                        val savedToken = preferencesManager.getToken()
-                        val fullUrl = if (savedToken.isNotEmpty()) {
-                            val base = serverUrl.trimEnd('/')
-                            "$base?token=$savedToken"
-                        } else {
-                            serverUrl
-                        }
-                        loadUrl(fullUrl)
+                        // Load URL (without token in URL params)
+                        loadUrl(serverUrl)
                         webViewRef = this
                     }
                 },
