@@ -437,7 +437,7 @@ fun MainScreen(
                                 if (success && token.isNotEmpty() && webViewRef != null) {
                                     webViewRef?.evaluateJavascript(
                                         "try { localStorage.setItem('token', '$token'); localStorage.setItem('openclaw_token', '$token'); } catch(e) { console.log('token inject err: ' + e); } "
-                                    ) { Log.d(TAG, "Token injected: $it") }
+                                    ) { Log.d("MainActivity", "Token injected: $it") }
                                 }
                             }
                             override fun onError(message: String) {

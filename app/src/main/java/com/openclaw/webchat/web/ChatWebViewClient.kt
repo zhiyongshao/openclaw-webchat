@@ -23,17 +23,14 @@ class ChatWebViewClient(private val callback: ChatWebViewCallback) {
                 wv.postDelayed({
                     wv.evaluateJavascript(
                         "(function(){" +
-                        "try{" +
-                        // Capture any JS errors\n"                        "window.onerror = function(msg,src,line){" +
-                        "window.OpenClawApp&&window.OpenClawApp.onJsError(msg+' at '+src+':'+line);" +
-                        "return false;" +
-                        "};" +
-                        // Check DOM state\n"                        "var body = document.body;" +
-                        "var children = body ? body.children.length : 0;" +
-                        "var innerHTML = body ? body.innerHTML.length : 0;" +
-                        "var title = document.title || 'no-title';" +
-                        "window.OpenClawApp&&window.OpenClawApp.log('DOM: children='+children+' htmlLen='+innerHTML+' title='+title);" +
-                        "}catch(e){window.OpenClawApp&&window.OpenClawApp.onJsError(e.message);}" +
+                        "var errHandler = function(msg,src,line){" +
+                        "try{if(window.OpenClawApp&&window.OpenClawApp.onJsError){window.OpenClawApp.onJsError(msg+' at '+src+':'+line);}}catch(e){} return false;};" +
+                        "if(window.onerror){var prev=window.onerror;window.onerror=function(m,s,l){errHandler(m,s,l);try{prev(m,s,l);}catch(e){}}}else{window.onerror=errHandler;}" +
+                        "var body=document.body;" +
+                        "var children=body?body.children.length:0;" +
+                        "var innerHTML=body?body.innerHTML.length:0;" +
+                        "var title=document.title||'no-title';" +
+                        "try{if(window.OpenClawApp&&window.OpenClawApp.log){window.OpenClawApp.log('DOM: children='+children+' htmlLen='+innerHTML+' title='+title);}}catch(e){}" +
                         "})();",
                         null
                     )
