@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.util.Log
 import android.webkit.*
 import android.widget.Toast
+import android.speech.SpeechRecognizer
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -383,6 +384,10 @@ fun MainScreen(
             ) {
                 SmallFloatingActionButton(
                     onClick = {
+                        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                            Toast.makeText(context, "语音识别不可用，请检查Google服务", Toast.LENGTH_LONG).show()
+                            return@SmallFloatingActionButton
+                        }
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                             == PackageManager.PERMISSION_GRANTED) {
                             voiceInputManager.startListening { text ->
@@ -392,6 +397,7 @@ fun MainScreen(
                                 )
                             }
                         } else {
+                            Toast.makeText(context, "正在请求麦克风权限...", Toast.LENGTH_SHORT).show()
                             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
