@@ -199,12 +199,13 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { Text("设置", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.ArrowBack, "返回")
+                        Icon(Icons.Default.ArrowBack, "返回", modifier = Modifier.size(20.dp))
                     }
-                }
+                },
+                modifier = Modifier.height(48.dp)
             )
         }
     ) { padding ->
@@ -213,7 +214,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("服务器", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
@@ -358,23 +359,24 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("OpenClaw") },
+                title = { Text("OpenClaw", style = MaterialTheme.typography.titleMedium) },
                 actions = {
                     IconButton(onClick = { webViewRef?.reload() }) {
-                        Icon(Icons.Default.Refresh, "刷新")
+                        Icon(Icons.Default.Refresh, "刷新", modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, "设置")
+                        Icon(Icons.Default.Settings, "设置", modifier = Modifier.size(20.dp))
                     }
-                }
+                },
+                modifier = Modifier.height(48.dp)
             )
         },
         floatingActionButton = {
             Column(
                 horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FloatingActionButton(
+                SmallFloatingActionButton(
                     onClick = {
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                             == PackageManager.PERMISSION_GRANTED) {
@@ -390,13 +392,13 @@ fun MainScreen(
                     },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                 ) {
-                    Icon(Icons.Default.Mic, "语音输入")
+                    Icon(Icons.Default.Mic, "语音输入", modifier = Modifier.size(18.dp))
                 }
-                FloatingActionButton(
+                SmallFloatingActionButton(
                     onClick = { filePickerLauncher.launch("*/*") },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                 ) {
-                    Icon(Icons.Default.Upload, "上传文件")
+                    Icon(Icons.Default.Upload, "上传文件", modifier = Modifier.size(18.dp))
                 }
             }
         }
