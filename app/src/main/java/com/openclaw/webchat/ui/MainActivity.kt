@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
             if (showSettings) {
                 SettingsScreen(
                     preferencesManager = preferencesManager,
+                    fileUploadManager = fileUploadManager,
                     onDismiss = { showSettings = false },
                     onLogout = {
                         showSettings = false
@@ -188,9 +189,11 @@ fun LoginScreen(
 @Composable
 fun SettingsScreen(
     preferencesManager: PreferencesManager,
+    fileUploadManager: FileUploadManager,
     onDismiss: () -> Unit,
     onLogout: () -> Unit
 ) {
+    val context = LocalContext.current
     var url by remember { mutableStateOf(preferencesManager.getServerUrl()) }
     var sshHost by remember { mutableStateOf(preferencesManager.getSSHHost()) }
     var sshPort by remember { mutableStateOf(preferencesManager.getSSHPort().toString()) }
