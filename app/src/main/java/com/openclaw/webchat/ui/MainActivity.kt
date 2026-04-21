@@ -198,14 +198,13 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = { Text("设置", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.ArrowBack, "返回", modifier = Modifier.size(20.dp))
                     }
-                },
-                modifier = Modifier.height(48.dp)
+                }
             )
         }
     ) { padding ->
@@ -276,6 +275,13 @@ fun SettingsScreen(
                     onClick = {
                         preferencesManager.saveServerUrl(url)
                         preferencesManager.saveSSHConfig(
+                            sshHost,
+                            sshPort.toIntOrNull() ?: 22,
+                            sshUser,
+                            sshPass
+                        )
+                        fileUploadManager.saveCredentials(
+                            context,
                             sshHost,
                             sshPort.toIntOrNull() ?: 22,
                             sshUser,
@@ -358,7 +364,7 @@ fun MainScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = { Text("OpenClaw", style = MaterialTheme.typography.titleMedium) },
                 actions = {
                     IconButton(onClick = { webViewRef?.reload() }) {
@@ -367,8 +373,7 @@ fun MainScreen(
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, "设置", modifier = Modifier.size(20.dp))
                     }
-                },
-                modifier = Modifier.height(48.dp)
+                }
             )
         },
         floatingActionButton = {
