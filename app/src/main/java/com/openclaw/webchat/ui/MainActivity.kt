@@ -546,6 +546,18 @@ fun MainScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Text("刷新页面")
                             }
+                            Button(
+                                onClick = {
+                                    webViewRef?.evaluateJavascript("(document.body ? document.body.innerHTML.substring(0,300) : 'no-body')") { html ->
+                                        Toast.makeText(context, "DOM[300]:\n$html", Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Info, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("显示页面HTML (Toast)")
+                            }
                         }
                     },
                     confirmButton = {
