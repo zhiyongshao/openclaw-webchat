@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -313,6 +314,7 @@ fun MainScreen(
     var isLoading by remember { mutableStateOf(false) }
     var jsErrorLog by remember { mutableStateOf("") }
     var showDebugDialog by remember { mutableStateOf(false) }
+    var debugHtmlContent by remember { mutableStateOf("") }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -523,7 +525,10 @@ fun MainScreen(
             // Debug dialog
             if (showDebugDialog) {
                 AlertDialog(
-                    onDismissRequest = { showDebugDialog = false },
+                    onDismissRequest = {
+                        showDebugDialog = false
+                        debugHtmlContent = ""
+                    },
                     title = { Text("页面调试信息") },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -548,20 +553,40 @@ fun MainScreen(
                             }
                             Button(
                                 onClick = {
-                                    webViewRef?.evaluateJavascript("(document.body ? document.body.innerHTML.substring(0,300) : 'no-body')") { html ->
-                                        Toast.makeText(context, "DOM[300]:\n$html", Toast.LENGTH_LONG).show()
+                                    webViewRef?.evaluateJavascript("(document.body ? document.body.innerHTML.substring(0,1000) : 'no-body')") { html ->
+                                        debugHtmlContent = html
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(Icons.Default.Info, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("显示页面HTML (Toast)")
+                                Text("获取页面HTML")
+                            }
+                            if (debugHtmlContent.isNotEmpty()) {
+                                HorizontalDivider()
+                                Text("DOM内容:", style = MaterialTheme.typography.labelMedium)
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    Text(
+                                        text = debugHtmlContent,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(8.dp),
+                                        maxLines = 20,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = { showDebugDialog = false }) {
+                        TextButton(onClick = {
+                            showDebugDialog = false
+                            debugHtmlContent = ""
+                        }) {
                             Text("关闭")
                         }
                     }
