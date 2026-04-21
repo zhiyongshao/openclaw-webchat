@@ -21,9 +21,9 @@ class ChatWebViewClient(private val callback: ChatWebViewCallback) {
             view?.let { wv ->
                 // Wait for JS + CSS to fully render (increased delay)
                 wv.postDelayed({
-                    // Fix blank screen: body/shell have height=0px — inject viewport height CSS
+                    // Fix blank screen: body/shell have height=0px — use fixed positioning to force viewport fill
                     wv.evaluateJavascript(
-                        "(function(){var s=document.createElement('style');s.textContent='html,body,.shell,.shell--chat{height:100%!important;min-height:100vh!important;overflow:hidden!important}';document.head.appendChild(s);})();",
+                        "(function(){var m=document.createElement('meta');m.name='viewport';m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no';document.head.appendChild(m);var s=document.createElement('style');s.textContent='html,body{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;display:block!important}.shell,.shell--chat{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;min-height:100vh!important;overflow:hidden!important}';document.head.appendChild(s);})();",
                         null
                     )
                     wv.evaluateJavascript(
