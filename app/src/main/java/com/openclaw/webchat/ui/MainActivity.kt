@@ -203,7 +203,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = { Text("设置", style = MaterialTheme.typography.titleMedium) },
+                title = { Text("设置") },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.ArrowBack, "返回", modifier = Modifier.size(20.dp))
@@ -369,7 +369,7 @@ fun MainScreen(
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = { Text("OpenClaw", style = MaterialTheme.typography.titleMedium) },
+                title = { Text("OpenClaw") },
                 actions = {
                     IconButton(onClick = { webViewRef?.reload() }) {
                         Icon(Icons.Default.Refresh, "刷新", modifier = Modifier.size(20.dp))
@@ -387,17 +387,16 @@ fun MainScreen(
             ) {
                 SmallFloatingActionButton(
                     onClick = {
-                        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-                            Toast.makeText(context, "语音识别不可用，请检查Google服务", Toast.LENGTH_LONG).show()
-                            return@SmallFloatingActionButton
-                        }
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                             == PackageManager.PERMISSION_GRANTED) {
                             voiceInputManager.startListening { text ->
+                                if (text.startsWith("[语音错误")) {
+                                    Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+                                } else {
                                 webViewRef?.evaluateJavascript(
                                     "window.dispatchEvent(new CustomEvent('voice-input', {detail: {text: '${text.replace("'", "\\'")}'}}))",
                                     null
-                                )
+                                )}
                             }
                         } else {
                             Toast.makeText(context, "正在请求麦克风权限...", Toast.LENGTH_SHORT).show()
