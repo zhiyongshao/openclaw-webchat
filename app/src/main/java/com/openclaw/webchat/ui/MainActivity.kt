@@ -474,8 +474,15 @@ fun MainScreen(
                             }
                         }, "OpenClawApp")
 
-                        // Load URL (without token in URL params)
-                        loadUrl(serverUrl)
+                        // Load URL with token as query param (server supports ?token=xxx for auth)
+                        val savedToken = preferencesManager.getToken()
+                        val fullUrl = if (savedToken.isNotEmpty()) {
+                            val base = serverUrl.trimEnd('/')
+                            "$base?token=$savedToken"
+                        } else {
+                            serverUrl
+                        }
+                        loadUrl(fullUrl)
                         webViewRef = this
                     }
                 },
