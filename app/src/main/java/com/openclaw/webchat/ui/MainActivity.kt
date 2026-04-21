@@ -555,7 +555,21 @@ fun MainScreen(
                             }
                             Button(
                                 onClick = {
-                                    webViewRef?.evaluateJavascript("(document.body ? document.body.innerHTML.substring(0,1000) : 'no-body')") { html ->
+                                    webViewRef?.evaluateJavascript("""
+                                    (function() {
+                                        var body = document.body;
+                                        if (!body) return 'no-body';
+                                        var cs = window.getComputedStyle(body);
+                                        var result = 'BODY: display=' + cs.display + ' visibility=' + cs.visibility + ' opacity=' + cs.opacity + ' width=' + cs.width + ' height=' + cs.height + ' overflow=' + cs.overflow + '\\n';
+                                        var app = document.querySelector('openclaw-app') || document.querySelector('.shell');
+                                        if (app) {
+                                            var pcs = window.getComputedStyle(app);
+                                            result += 'SHELL: display=' + pcs.display + ' visibility=' + pcs.visibility + ' opacity=' + pcs.opacity + ' width=' + pcs.width + ' height=' + pcs.height + '\\n';
+                                        }
+                                        result += 'HTML: ' + body.innerHTML.substring(0, 500);
+                                        return result;
+                                    })();
+                                    """.trimMargin()) { html ->
                                         debugHtmlContent = html
                                     }
                                 },
@@ -563,7 +577,7 @@ fun MainScreen(
                             ) {
                                 Icon(Icons.Default.Info, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("获取页面HTML")
+                                Text("获取页面HTML + CSS诊断")
                             }
                             if (debugHtmlContent.isNotEmpty()) {
                                 HorizontalDivider()
@@ -577,7 +591,7 @@ fun MainScreen(
                                         text = debugHtmlContent,
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.padding(8.dp),
-                                        maxLines = 20,
+                                        maxLines = 40,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }

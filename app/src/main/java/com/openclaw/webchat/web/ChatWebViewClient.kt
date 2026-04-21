@@ -19,7 +19,7 @@ class ChatWebViewClient(private val callback: ChatWebViewCallback) {
             Log.d(TAG, "Page finished: $url")
 
             view?.let { wv ->
-                // Wait for JS to fully render, then check content
+                // Wait for JS + CSS to fully render (increased delay)
                 wv.postDelayed({
                     wv.evaluateJavascript(
                         "(function(){" +
@@ -34,7 +34,7 @@ class ChatWebViewClient(private val callback: ChatWebViewCallback) {
                         "})();",
                         null
                     )
-                }, 2000)
+                }, 4000)
             }
 
             callback.onPageLoaded(true)
