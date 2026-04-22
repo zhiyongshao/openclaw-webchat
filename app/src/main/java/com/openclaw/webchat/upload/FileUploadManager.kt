@@ -146,6 +146,26 @@ class FileUploadManager {
     }
 }
 
+
+    /**
+     * Notify OpenClaw that a file was uploaded.
+     */
+    private fun notifyUpload(filename: String, size: Long, serverUrl: String) {
+        try {
+            val host = extractHost(serverUrl)
+            val url = URL("http://$host:18790/upload")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            conn.outputStream.write('''{"filename":"$filename","size":$size,"source":"app"}''''.toByteArray())
+            conn.inputStream.read()
+            conn.disconnect()
+        } catch (e: Exception) {
+            Log.d(TAG, "Upload notify failed: ${e.message}")
+        }
+    }
+
 /**
  * Simple progress monitor for SFTP uploads.
  */
