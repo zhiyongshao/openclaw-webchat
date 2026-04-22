@@ -36,6 +36,7 @@ import com.openclaw.webchat.util.PreferencesManager
 import com.openclaw.webchat.voice.VoiceInputManager
 import com.openclaw.webchat.web.ChatWebViewCallback
 import com.openclaw.webchat.web.ChatWebViewClient
+import com.openclaw.webchat.openclaw.ChatScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -87,11 +88,9 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = { showSettings = true }
                 )
             } else {
-                MainScreen(
-                    preferencesManager = preferencesManager,
-                    fileUploadManager = fileUploadManager,
-                    voiceInputManager = voiceInputManager,
-                    onOpenSettings = { showSettings = true },
+                ChatScreen(
+                    serverUrl = preferencesManager.getServerUrl(),
+                    token = preferencesManager.getToken(),
                     onLogout = {
                         isLoggedIn = false
                     }

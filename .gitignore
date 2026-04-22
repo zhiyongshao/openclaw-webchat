@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+gradle/wrapper/gradle-wrapper.properties
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+local.properties
+*.log
+
+# Build outputs
+*.apk
+*.aab
+app/build/
+app/release/
+
+# Keystore
+*.keystore
+*.jks
+
+# OS
+.DS_Store
+Thumbs.db
