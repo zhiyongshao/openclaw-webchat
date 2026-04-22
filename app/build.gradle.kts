@@ -79,7 +79,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // BouncyCastle for Ed25519 device identity
-    implementation("com.mindedca:spongycastle-all:1.52.0")
+    implementation("org.bouncycastle:bcprov-jdk15on:1.70")
 
     // JSch for SCP file upload
     implementation("com.github.mwiede:jsch:0.2.18")
