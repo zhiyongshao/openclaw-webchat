@@ -9,8 +9,6 @@ import com.jcraft.jsch.Session
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
-import java.io.PipedInputStream
-import java.io.PipedOutputStream
 import java.util.Properties
 
 /**
@@ -47,16 +45,26 @@ class FileUploadManager {
             val sshUser = prefs.getString("ssh_user", DEFAULT_SSH_USER) ?: DEFAULT_SSH_USER
             val sshPassword = prefs.getString("ssh_password", "") ?: ""
 
+            Log.d(TAG, "Upload attempt: host=$sshHost:$sshPort user=$sshUser path=$DEFAULT_UPLOAD_PATH")
+
+            if (sshPassword.isEmpty()) {
+                Log.w(TAG, "SSH password is empty!")
+                return@withContext Result.failure(Exception("SSH密码未设置，请到设置页面填写"))
+            }
+
             val filename = getFileName(context, fileUri) ?: "upload_${System.currentTimeMillis()}"
             val remotePath = "$DEFAULT_UPLOAD_PATH/$filename"
+
+            Log.d(TAG, "File: $filename, URI: $fileUri")
 
             val inputStream: InputStream = context.contentResolver.openInputStream(fileUri)
                 ?: return@withContext Result.failure(Exception("无法读取文件"))
 
-            // Get file size
             val pfd = context.contentResolver.openFileDescriptor(fileUri, "r")
             val fileSize = pfd?.statSize ?: 0L
             pfd?.close()
+
+            Log.d(TAG, "File size: $fileSize bytes")
 
             onProgress("连接中...")
 
@@ -67,32 +75,34 @@ class FileUploadManager {
                 put("StrictHostKeyChecking", "no")
                 put("PreferredAuthentications", "password")
             })
+
+            Log.d(TAG, "Connecting to SSH...")
             session.connect(30000)
+            Log.d(TAG, "SSH connected!")
 
             onProgress("上传中...")
 
-            // Use exec channel for scp
             val execChannel = session.openChannel("exec") as ChannelExec
             execChannel.setCommand("scp -t -d \"$remotePath\"")
 
             val out = execChannel.outputStream
             val inp = execChannel.inputStream
             execChannel.connect()
+            Log.d(TAG, "SCP channel connected")
 
-            // Send file header: C0644 filesize filename\n
             val header = "C0644 $fileSize $filename\n"
+            Log.d(TAG, "Sending header: $header")
             out.write(header.toByteArray())
             out.flush()
 
-            // Read single byte response from remote
             val ack = inp.read()
+            Log.d(TAG, "SCP ack byte: $ack")
             if (ack != 0) {
                 execChannel.disconnect()
                 session.disconnect()
                 return@withContext Result.failure(Exception("SCP被拒绝，代码: $ack"))
             }
 
-            // Send file content in chunks
             val buffer = ByteArray(8192)
             var totalSent = 0L
 
@@ -109,12 +119,12 @@ class FileUploadManager {
                 }
             }
 
-            // Send terminal zero byte
             out.write(ByteArray(1) { 0 })
             out.flush()
+            Log.d(TAG, "File content sent, waiting for final ack")
 
-            // Read final acknowledgement
             val resp = inp.read()
+            Log.d(TAG, "SCP final response: $resp")
             execChannel.disconnect()
             session.disconnect()
 
@@ -123,10 +133,11 @@ class FileUploadManager {
             }
 
             onProgress("完成")
+            Log.d(TAG, "Upload SUCCESS: $remotePath")
             Result.success(remotePath)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Upload failed", e)
+            Log.e(TAG, "Upload FAILED", e)
             Result.failure(e)
         }
     }
