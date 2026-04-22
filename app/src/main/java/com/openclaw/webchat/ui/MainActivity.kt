@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import java.io.File
 import android.os.Bundle
 import android.util.Log
 import android.webkit.*
@@ -357,12 +358,28 @@ fun MainScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            voiceInputManager.startListening { text ->
-                webViewRef?.evaluateJavascript(
-                    "window.dispatchEvent(new CustomEvent('voice-input', {detail: {text: '${text.replace("'", "\\'")}'}}))",
-                    null
-                )
-            }
+            voiceInputManager.startRecording(
+                statusCallback = { status -> Toast.makeText(context, status, Toast.LENGTH_SHORT).show() },
+                resultCallback = { filePath ->
+                    val uri = android.net.Uri.fromFile(File(filePath))
+                    scope.launch {
+                        val upResult = fileUploadManager.uploadFile(
+                            context = context,
+                            fileUri = uri,
+                            serverUrl = serverUrl,
+                            onProgress = { }
+                        )
+                        if (upResult.isSuccess) {
+                            webViewRef?.evaluateJavascript(
+                                "window.dispatchEvent(new CustomEvent('voice-file', {detail: {file: '${upResult.getOrNull()}'}}))",
+                                null
+                            )
+                        } else {
+                            Toast.makeText(context, "上传失败", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            )
         }
     }
 
@@ -387,25 +404,42 @@ fun MainScreen(
             ) {
                 SmallFloatingActionButton(
                     onClick = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-                            == PackageManager.PERMISSION_GRANTED) {
-                            voiceInputManager.startListening { text ->
-                                if (text.startsWith("[语音错误")) {
-                                    Toast.makeText(context, text, Toast.LENGTH_LONG).show()
-                                } else {
-                                webViewRef?.evaluateJavascript(
-                                    "window.dispatchEvent(new CustomEvent('voice-input', {detail: {text: '${text.replace("'", "\\'")}'}}))",
-                                    null
-                                )}
-                            }
+                        if (voiceInputManager.isCurrentlyRecording()) {
+                            voiceInputManager.stopRecording()
                         } else {
-                            Toast.makeText(context, "正在请求麦克风权限...", Toast.LENGTH_SHORT).show()
-                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                                == PackageManager.PERMISSION_GRANTED) {
+                                voiceInputManager.startRecording(
+                                    statusCallback = { status -> Toast.makeText(context, status, Toast.LENGTH_SHORT).show() },
+                                    resultCallback = { filePath ->
+                                        val uri = android.net.Uri.fromFile(File(filePath))
+                                        scope.launch {
+                                            val upResult = fileUploadManager.uploadFile(
+                                                context = context,
+                                                fileUri = uri,
+                                                serverUrl = serverUrl,
+                                                onProgress = { }
+                                            )
+                                            if (upResult.isSuccess) {
+                                                webViewRef?.evaluateJavascript(
+                                                    "window.dispatchEvent(new CustomEvent('voice-file', {detail: {file: '${upResult.getOrNull()}'}}))",
+                                                    null
+                                                )
+                                            } else {
+                                                Toast.makeText(context, "上传失败", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    }
+                                )
+                            } else {
+                                Toast.makeText(context, "正在请求麦克风权限...", Toast.LENGTH_SHORT).show()
+                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
                         }
                     },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                 ) {
-                    Icon(Icons.Default.Mic, "语音输入", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Mic, "按住说话", modifier = Modifier.size(18.dp))
                 }
                 SmallFloatingActionButton(
                     onClick = { filePickerLauncher.launch("*/*") },

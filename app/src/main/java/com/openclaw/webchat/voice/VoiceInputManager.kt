@@ -1,101 +1,173 @@
 package com.openclaw.webchat.voice
 
 import android.app.Activity
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import java.util.Locale
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.util.Log
+import java.io.File
+import java.io.FileOutputStream
 
 /**
- * Voice input manager using Android's built-in SpeechRecognizer.
- * Transcribes voice to text and triggers a JS event in the WebView.
+ * Audio recorder - records voice as WAV file.
+ * Tap to start recording, tap again to stop and send.
  */
 class VoiceInputManager(private val activity: Activity) {
 
-    private var speechRecognizer: SpeechRecognizer? = null
-    private var isListening = false
+    companion object {
+        private const val TAG = "VoiceInputManager"
+        private const val SAMPLE_RATE = 44100
+        private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
+        private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
+        private const val MAX_DURATION_MS = 60000
+    }
+
+    private var audioRecord: AudioRecord? = null
+    private var isRecording = false
+    private var recordingThread: Thread? = null
+    private var outputFile: File? = null
+    private var onStatusCallback: ((String) -> Unit)? = null
     private var onResultCallback: ((String) -> Unit)? = null
 
-    fun startListening(onResult: (String) -> Unit) {
-        if (isListening) {
-            stopListening()
-        }
-
-        if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
-            onResult("语音识别不可用")
+    fun startRecording(statusCallback: (String) -> Unit, resultCallback: (String) -> Unit) {
+        if (isRecording) {
+            stopRecording()
             return
         }
 
-        onResultCallback = onResult
-
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(activity).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {}
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
-
-                override fun onError(error: Int) {
-                    isListening = false
-                    val errorMsg = when (error) {
-                        SpeechRecognizer.ERROR_AUDIO -> "音频录制错误"
-                        SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
-                        SpeechRecognizer.ERROR_NETWORK -> "网络错误"
-                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "无法识别"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别服务忙碌"
-                        SpeechRecognizer.ERROR_SERVER -> "服务器错误"
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "无语音输入"
-                        else -> "未知错误"
-                    }
-                    if (error != SpeechRecognizer.ERROR_NO_MATCH &&
-                        error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                        onResult("[语音错误: $errorMsg]")
-                    }
-                }
-
-                override fun onResults(results: Bundle?) {
-                    isListening = false
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull() ?: ""
-                    if (text.isNotEmpty()) {
-                        onResultCallback?.invoke(text)
-                    }
-                }
-
-                override fun onPartialResults(partialResults: Bundle?) {
-                    val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull() ?: ""
-                    if (text.isNotEmpty()) {
-                        onResultCallback?.invoke(text)
-                    }
-                }
-
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
+        val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+        if (bufferSize == AudioRecord.ERROR_BAD_VALUE || bufferSize == AudioRecord.ERROR) {
+            statusCallback("录音初始化失败")
+            return
         }
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.CHINESE.toString())
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        try {
+            audioRecord = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                SAMPLE_RATE,
+                CHANNEL_CONFIG,
+                AUDIO_FORMAT,
+                bufferSize * 2
+            )
+
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                statusCallback("录音初始化失败")
+                audioRecord?.release()
+                audioRecord = null
+                return
+            }
+
+            outputFile = File(activity.cacheDir, "voice_${System.currentTimeMillis()}.pcm")
+            onStatusCallback = statusCallback
+            onResultCallback = resultCallback
+
+            isRecording = true
+            audioRecord?.startRecording()
+
+            recordingThread = Thread {
+                writeAudioDataToFile(bufferSize)
+            }
+            recordingThread?.start()
+
+            statusCallback("正在录音...")
+
+        } catch (e: SecurityException) {
+            statusCallback("没有麦克风权限")
+        } catch (e: Exception) {
+            Log.e(TAG, "startRecording failed", e)
+            statusCallback("录音失败: ${e.message}")
         }
-
-        isListening = true
-        speechRecognizer?.startListening(intent)
     }
 
-    fun stopListening() {
-        isListening = false
-        speechRecognizer?.stopListening()
-        speechRecognizer?.destroy()
-        speechRecognizer = null
+    fun stopRecording() {
+        if (!isRecording) return
+        isRecording = false
+
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+            audioRecord = null
+            recordingThread?.interrupt()
+            recordingThread = null
+
+            outputFile?.let { file ->
+                if (file.exists() && file.length() > 44) {
+                    val wavFile = File(activity.cacheDir, "voice_${System.currentTimeMillis()}.wav")
+                    writeWavHeader(file, wavFile, SAMPLE_RATE, 1, 16)
+                    onResultCallback?.invoke(wavFile.absolutePath)
+                } else {
+                    onStatusCallback?.invoke("录音文件无效")
+                }
+            } ?: onStatusCallback?.invoke("录音文件未创建")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "stopRecording failed", e)
+            onStatusCallback?.invoke("停止录音失败")
+        }
     }
 
-    fun isCurrentlyListening(): Boolean = isListening
+    private fun writeWavHeader(pcmFile: File, wavFile: File, sampleRate: Int, channels: Int, bitsPerSample: Int) {
+        val pcmData = pcmFile.readBytes()
+        val wavOut = FileOutputStream(wavFile)
+        val dataSize = pcmData.size
+        val fileSize = 36 + dataSize
+
+        wavOut.write("RIFF".toByteArray())
+        wavOut.write(intToByteArray(fileSize))
+        wavOut.write("WAVE".toByteArray())
+        wavOut.write("fmt ".toByteArray())
+        wavOut.write(intToByteArray(16))
+        wavOut.write(shortToByteArray(1))
+        wavOut.write(shortToByteArray(channels.toShort()))
+        wavOut.write(intToByteArray(sampleRate))
+        wavOut.write(intToByteArray(sampleRate * channels * bitsPerSample / 8))
+        wavOut.write(shortToByteArray((channels * bitsPerSample / 8).toShort()))
+        wavOut.write(shortToByteArray(bitsPerSample.toShort()))
+        wavOut.write("data".toByteArray())
+        wavOut.write(intToByteArray(dataSize))
+        wavOut.write(pcmData)
+        wavOut.close()
+        pcmFile.delete()
+    }
+
+    private fun intToByteArray(value: Int): ByteArray = byteArrayOf(
+        (value and 0xff).toByte(),
+        ((value shr 8) and 0xff).toByte(),
+        ((value shr 16) and 0xff).toByte(),
+        ((value shr 24) and 0xff).toByte()
+    )
+
+    private fun shortToByteArray(value: Short): ByteArray = byteArrayOf(
+        (value.toInt() and 0xff).toByte(),
+        ((value.toInt() shr 8) and 0xff).toByte()
+    )
+
+    private fun writeAudioDataToFile(bufferSize: Int) {
+        val buffer = ByteArray(bufferSize)
+        var outputStream: FileOutputStream? = null
+
+        try {
+            outputStream = FileOutputStream(outputFile)
+            val startTime = System.currentTimeMillis()
+
+            while (isRecording) {
+                val read = audioRecord?.read(buffer, 0, bufferSize) ?: 0
+                if (read > 0) {
+                    outputStream.write(buffer, 0, read)
+                }
+                if (System.currentTimeMillis() - startTime > MAX_DURATION_MS) {
+                    onStatusCallback?.invoke("录音超时")
+                    break
+                }
+            }
+            outputStream.flush()
+        } catch (e: Exception) {
+            Log.e(TAG, "writeAudioDataToFile failed", e)
+            onStatusCallback?.invoke("录音写入失败")
+        } finally {
+            try { outputStream?.close() } catch (e: Exception) { }
+        }
+    }
+
+    fun isCurrentlyRecording(): Boolean = isRecording
 }
