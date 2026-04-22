@@ -447,9 +447,13 @@ fun MainScreen(
                             }
                         }
                     },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    containerColor = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondaryContainer
                 ) {
-                    Icon(Icons.Default.Mic, "按住说话", modifier = Modifier.size(18.dp))
+                    Icon(
+                        imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                        contentDescription = if (isRecording) "停止录音" else "按住说话",
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
                 SmallFloatingActionButton(
                     onClick = { filePickerLauncher.launch("*/*") },

@@ -10,6 +10,8 @@ import com.jcraft.jsch.SftpException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * File upload manager using SFTP via JSch to transfer files to OpenClaw host.
@@ -107,6 +109,7 @@ class FileUploadManager {
 
             onProgress("完成")
             Log.d(TAG, "SUCCESS: $remotePath")
+            notifyUpload(filename, fileSize, serverUrl)
             return@withContext Result.success(remotePath)
 
         } catch (e: Exception) {
