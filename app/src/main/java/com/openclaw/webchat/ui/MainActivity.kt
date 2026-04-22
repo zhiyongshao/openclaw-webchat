@@ -344,7 +344,7 @@ fun MainScreen(
                     if (result.isSuccess) {
                         Toast.makeText(context, "上传成功", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "上传失败", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "上传失败: " + (result.exceptionOrNull()?.message ?: "未知"), Toast.LENGTH_SHORT).show()
                     }
                 } finally {
                     isUploading = false
@@ -375,7 +375,7 @@ fun MainScreen(
                                 null
                             )
                         } else {
-                            Toast.makeText(context, "上传失败", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "上传失败: " + (upResult.exceptionOrNull()?.message ?: "未知"), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -427,7 +427,7 @@ fun MainScreen(
                                                     null
                                                 )
                                             } else {
-                                                Toast.makeText(context, "上传失败", Toast.LENGTH_LONG).show()
+                                                Toast.makeText(context, "上传失败: " + (upResult.exceptionOrNull()?.message ?: "未知"), Toast.LENGTH_LONG).show()
                                             }
                                         }
                                     }
