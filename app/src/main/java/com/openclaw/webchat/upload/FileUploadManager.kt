@@ -3,30 +3,26 @@ package com.openclaw.webchat.upload
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import com.jcraft.jsch.ChannelExec
+import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
+import com.jcraft.jsch.SftpException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
-import java.util.Properties
 
 /**
- * File upload manager using SCP via JSch to transfer files to OpenClaw host.
- * Credentials are stored encrypted in SharedPreferences.
+ * File upload manager using SFTP via JSch to transfer files to OpenClaw host.
  */
 class FileUploadManager {
 
     companion object {
         private const val TAG = "FileUploadManager"
-        private const val DEFAULT_SCP_PORT = 22
+        private const val DEFAULT_SFTP_PORT = 22
         private const val DEFAULT_SSH_USER = "root"
         private const val DEFAULT_UPLOAD_PATH = "/root/.openclaw/workspace/temp"
     }
 
-    /**
-     * Upload a file from a content URI to the OpenClaw host via SCP.
-     */
     suspend fun uploadFile(
         context: Context,
         fileUri: Uri,
@@ -41,21 +37,18 @@ class FileUploadManager {
 
             val prefs = context.getSharedPreferences("openclaw_prefs", Context.MODE_PRIVATE)
             val sshHost = prefs.getString("ssh_host", host) ?: host
-            val sshPort = prefs.getInt("ssh_port", DEFAULT_SCP_PORT)
+            val sshPort = prefs.getInt("ssh_port", DEFAULT_SFTP_PORT)
             val sshUser = prefs.getString("ssh_user", DEFAULT_SSH_USER) ?: DEFAULT_SSH_USER
             val sshPassword = prefs.getString("ssh_password", "") ?: ""
 
-            Log.d(TAG, "Upload attempt: host=$sshHost:$sshPort user=$sshUser path=$DEFAULT_UPLOAD_PATH")
+            Log.d(TAG, "SFTP upload: host=$sshHost:$sshPort user=$sshUser path=$DEFAULT_UPLOAD_PATH")
 
             if (sshPassword.isEmpty()) {
-                Log.w(TAG, "SSH password is empty!")
                 return@withContext Result.failure(Exception("SSH密码未设置，请到设置页面填写"))
             }
 
             val filename = getFileName(context, fileUri) ?: "upload_${System.currentTimeMillis()}"
             val remotePath = "$DEFAULT_UPLOAD_PATH/$filename"
-
-            Log.d(TAG, "File: $filename, URI: $fileUri")
 
             val inputStream: InputStream = context.contentResolver.openInputStream(fileUri)
                 ?: return@withContext Result.failure(Exception("无法读取文件"))
@@ -64,81 +57,61 @@ class FileUploadManager {
             val fileSize = pfd?.statSize ?: 0L
             pfd?.close()
 
-            Log.d(TAG, "File size: $fileSize bytes")
+            Log.d(TAG, "File: $filename, size: $fileSize bytes")
 
             onProgress("连接中...")
 
             val jsch = JSch()
             val session: Session = jsch.getSession(sshUser, sshHost, sshPort)
             session.setPassword(sshPassword)
-            session.setConfig(Properties().apply {
-                put("StrictHostKeyChecking", "no")
-                put("PreferredAuthentications", "password")
-            })
+            session.config["StrictHostKeyChecking"] = "no"
+            session.config["PreferredAuthentications"] = "password"
 
-            Log.d(TAG, "Connecting to SSH...")
+            Log.d(TAG, "Connecting to SFTP...")
             session.connect(30000)
-            Log.d(TAG, "SSH connected!")
+            Log.d(TAG, "Session connected")
 
             onProgress("上传中...")
 
-            val execChannel = session.openChannel("exec") as ChannelExec
-            execChannel.setCommand("scp -t -d \"$remotePath\"")
+            val sftp = session.openChannel("sftp") as ChannelSftp
+            sftp.connect()
 
-            val out = execChannel.outputStream
-            val inp = execChannel.inputStream
-            execChannel.connect()
-            Log.d(TAG, "SCP channel connected")
-
-            val header = "C0644 $fileSize $filename\n"
-            Log.d(TAG, "Sending header: $header")
-            out.write(header.toByteArray())
-            out.flush()
-
-            val ack = inp.read()
-            Log.d(TAG, "SCP ack byte: $ack")
-            if (ack != 0) {
-                execChannel.disconnect()
-                session.disconnect()
-                return@withContext Result.failure(Exception("SCP被拒绝，代码: $ack"))
-            }
-
-            val buffer = ByteArray(8192)
-            var totalSent = 0L
-
-            inputStream.use { input ->
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    out.write(buffer, 0, bytesRead)
-                    out.flush()
-                    totalSent += bytesRead
-                    if (fileSize > 0) {
-                        val pct = (totalSent * 100 / fileSize).toInt()
-                        onProgress("上传中... $pct%")
+            // Ensure remote directory exists
+            try {
+                sftp.cd(DEFAULT_UPLOAD_PATH)
+            } catch (e: SftpException) {
+                // Directory doesn't exist, create it
+                val dirs = DEFAULT_UPLOAD_PATH.split("/").filter { it.isNotEmpty() }
+                var path = ""
+                for (dir in dirs) {
+                    path += "/$dir"
+                    try { sftp.cd(path) } catch (ex: SftpException) {
+                        sftp.mkdir(path)
                     }
                 }
+                sftp.cd(DEFAULT_UPLOAD_PATH)
             }
 
-            out.write(ByteArray(1) { 0 })
-            out.flush()
-            Log.d(TAG, "File content sent, waiting for final ack")
+            Log.d(TAG, "SFTP channel connected, starting upload")
 
-            val resp = inp.read()
-            Log.d(TAG, "SCP final response: $resp")
-            execChannel.disconnect()
+            // Use put with a progress monitor
+            val monitor = SimpleProgressMonitor(fileSize) { progress ->
+                onProgress("上传中... $progress%")
+            }
+
+            sftp.put(inputStream, filename, monitor, ChannelSftp.OVERWRITE)
+
+            Log.d(TAG, "Upload complete, disconnecting")
+            sftp.disconnect()
             session.disconnect()
 
-            if (resp != 0) {
-                return@withContext Result.failure(Exception("SCP传输失败: $resp"))
-            }
-
             onProgress("完成")
-            Log.d(TAG, "Upload SUCCESS: $remotePath")
-            Result.success(remotePath)
+            Log.d(TAG, "SUCCESS: $remotePath")
+            return@withContext Result.success(remotePath)
 
         } catch (e: Exception) {
             Log.e(TAG, "Upload FAILED", e)
-            Result.failure(e)
+            return@withContext Result.failure(e)
         }
     }
 
@@ -167,5 +140,29 @@ class FileUploadManager {
             putString("ssh_password", password)
             apply()
         }
+    }
+}
+
+/**
+ * Simple progress monitor for SFTP uploads.
+ */
+class SimpleProgressMonitor(private val totalSize: Long, private val onProgress: (Int) -> Unit) : com.jcraft.jsch.SftpProgressMonitor {
+    private var uploaded: Long = 0
+
+    override fun init(op: Int, src: String, dest: String, total: Long) {
+        uploaded = 0
+    }
+
+    override fun count(count: Long): Boolean {
+        uploaded += count
+        if (totalSize > 0) {
+            val pct = (uploaded * 100 / totalSize).toInt()
+            onProgress(pct)
+        }
+        return true
+    }
+
+    override fun end() {
+        onProgress(100)
     }
 }
