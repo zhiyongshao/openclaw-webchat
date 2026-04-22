@@ -10,6 +10,7 @@ import com.jcraft.jsch.SftpException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
+import org.json.JSONObject
 import java.io.InputStream
 import java.net.URL
 import java.util.UUID
@@ -17,7 +18,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * File upload manager using SFTP via JSch to transfer files to OpenClaw host.
- * After successful upload, notifies OpenClaw via WebSocket Gateway Protocol.
+ * After successful upload, notifies OpenClaw AI via native Gateway Protocol.
  */
 class FileUploadManager {
 
@@ -116,7 +117,7 @@ class FileUploadManager {
             onProgress("完成")
             Log.d(TAG, "SUCCESS: $remotePath")
 
-            // Notify OpenClaw via WebSocket Gateway Protocol
+            // Notify OpenClaw via native Gateway Protocol
             notifyOpenClaw(host, filename, fileSize, remotePath)
 
             return@withContext Result.success(remotePath)
@@ -128,8 +129,8 @@ class FileUploadManager {
     }
 
     /**
-     * Notify OpenClaw AI that a file was uploaded.
-     * Uses the native WebSocket Gateway Protocol - no extra service needed.
+     * Notify OpenClaw AI via the native WebSocket Gateway Protocol.
+     * Full handshake: connect.challenge → connect → hello-ok → event
      */
     private fun notifyOpenClaw(host: String, filename: String, size: Long, remotePath: String) {
         try {
@@ -142,50 +143,93 @@ class FileUploadManager {
 
             val wsUrl = "ws://$host:18789/ws"
             val client = OkHttpClient.Builder()
-                .readTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
                 .build()
 
-            // Build the event message per Gateway Protocol
-            val eventJson = """
-                {
-                    "type": "event",
-                    "event": "file.uploaded",
-                    "payload": {
-                        "filename": "$filename",
-                        "size": $size,
-                        "path": "$remotePath",
-                        "source": "app"
-                    },
-                    "sessionKey": "main"
-                }
-            """.trimIndent()
+            var challenge: String? = null
+            var helloReceived = false
+            var eventSent = false
 
             val request = Request.Builder()
                 .url(wsUrl)
                 .addHeader("Authorization", "Bearer $gatewayToken")
                 .build()
 
+            val eventPayload = JSONObject().apply {
+                put("filename", filename)
+                put("size", size)
+                put("path", remotePath)
+                put("source", "app")
+            }
+
+            val eventJson = JSONObject().apply {
+                put("type", "event")
+                put("event", "file.uploaded")
+                put("payload", eventPayload)
+                put("sessionKey", "main")
+            }
+
             client.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
-                    Log.d(TAG, "WS connected, sending event")
-                    webSocket.send(eventJson)
-                    webSocket.close(1000, "done")
+                    Log.d(TAG, "WS connected, waiting for challenge...")
+                }
+
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                    Log.d(TAG, "WS message: $text")
+                    try {
+                        val msg = JSONObject(text)
+                        val eventType = msg.optString("event", "")
+                        val msgType = msg.optString("type", "")
+
+                        if (eventType == "connect.challenge" && !helloReceived) {
+                            // Step 1: Got challenge, now send connect request
+                            challenge = msg.getJSONObject("payload").getString("nonce")
+                            val connectReq = JSONObject().apply {
+                                put("type", "req")
+                                put("id", UUID.randomUUID().toString())
+                                put("method", "connect")
+                                put("params", JSONObject().apply {
+                                    put("minProtocol", 3)
+                                    put("maxProtocol", 3)
+                                    put("client", JSONObject().apply {
+                                        put("id", "openclaw-webchat")
+                                        put("version", "1.0.0")
+                                        put("platform", "android")
+                                        put("mode", "operator")
+                                    })
+                                    put("role", "operator")
+                                    put("scopes", org.json.JSONArray(listOf("operator.read", "operator.write")))
+                                    put("auth", JSONObject().apply {
+                                        put("token", gatewayToken)
+                                    })
+                                })
+                            }
+                            Log.d(TAG, "Sending connect request...")
+                            webSocket.send(connectReq.toString())
+                        } else if (msgType == "res" && msg.optBoolean("ok", false)) {
+                            // Step 2: Got hello-ok, now send the event
+                            helloReceived = true
+                            Log.d(TAG, "Got hello-ok, sending file.uploaded event")
+                            webSocket.send(eventJson.toString())
+                            eventSent = true
+                            // Close after sending
+                            webSocket.close(1000, "done")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "WS parse error: ${e.message}")
+                    }
                 }
 
                 override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: Response?) {
                     Log.d(TAG, "WS notify failed: ${t.message}")
                 }
 
-                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
-                    Log.d(TAG, "WS message: $text")
-                }
-
                 override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
-                    Log.d(TAG, "WS closed: $code $reason")
+                    Log.d(TAG, "WS closed: $code $reason, eventSent=$eventSent")
                 }
             })
 
-            Log.d(TAG, "WS notify sent: $filename")
+            Log.d(TAG, "WS notify initiated")
         } catch (e: Exception) {
             Log.d(TAG, "Notify error: ${e.message}")
         }
