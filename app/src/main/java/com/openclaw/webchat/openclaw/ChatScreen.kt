@@ -2,7 +2,15 @@ package com.openclaw.webchat.openclaw
 
 import android.Manifest
 import android.content.pm.PackageManager
-import androidx.compose.foundation.*
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,14 +23,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.io.File
+import java.io.FileInputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Base64
 
 /**
  * Main chat screen using WebSocket connection to OpenClaw Gateway.
@@ -38,6 +52,28 @@ fun ChatScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+
+    // Image picker launcher
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val bytes = inputStream?.readBytes()
+                inputStream?.close()
+                if (bytes != null) {
+                    // Save to temp file for ViewModel
+                    val tempFile = File(context.cacheDir, "upload_${System.currentTimeMillis()}.jpg")
+                    tempFile.writeBytes(bytes)
+                    viewModel.sendImage(tempFile)
+                    tempFile.deleteOnExit()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     // Initialize ViewModel once
     LaunchedEffect(serverUrl, token) {
@@ -234,6 +270,7 @@ fun ChatScreen(
                 onTextChange = { viewModel.setCurrentText(it) },
                 onSend = { viewModel.sendMessage(state.currentText) },
                 onAbort = { viewModel.abort() },
+                onAttach = { imagePickerLauncher.launch("image/*") },
                 isStreaming = state.streamingSessionKey != null,
                 isConnected = state.connectionState == ConnectionState.Connected,
                 modifier = Modifier.fillMaxWidth()
@@ -354,6 +391,7 @@ private fun ChatInputBar(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     onAbort: () -> Unit,
+    onAttach: () -> Unit,
     isStreaming: Boolean,
     isConnected: Boolean,
     modifier: Modifier = Modifier
@@ -367,8 +405,26 @@ private fun ChatInputBar(
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .imePadding(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Attachment button
+            IconButton(
+                onClick = onAttach,
+                enabled = isConnected && !isStreaming,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.Default.AttachFile,
+                    "附件",
+                    modifier = Modifier.size(20.dp),
+                    tint = if (isConnected && !isStreaming) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    }
+                )
+            }
+
             if (isStreaming) {
                 // Show abort button when streaming
                 FilledTonalIconButton(
