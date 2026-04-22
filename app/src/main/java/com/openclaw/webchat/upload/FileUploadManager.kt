@@ -28,8 +28,6 @@ class FileUploadManager {
         private const val DEFAULT_UPLOAD_PATH = "/root/.openclaw/workspace/temp"
     }
 
-    private val prefs get() = context.getSharedPreferences("openclaw_prefs", Context.MODE_PRIVATE)
-
     private var context: Context? = null
 
     fun setContext(ctx: Context) {
