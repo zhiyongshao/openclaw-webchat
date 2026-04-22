@@ -64,8 +64,8 @@ class FileUploadManager {
             val jsch = JSch()
             val session: Session = jsch.getSession(sshUser, sshHost, sshPort)
             session.setPassword(sshPassword)
-            session.config["StrictHostKeyChecking"] = "no"
-            session.config["PreferredAuthentications"] = "password"
+            session.setConfig("StrictHostKeyChecking", "no")
+            session.setConfig("PreferredAuthentications", "password")
 
             Log.d(TAG, "Connecting to SFTP...")
             session.connect(30000)
