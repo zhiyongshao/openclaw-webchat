@@ -412,6 +412,7 @@ fun MainScreen(
                                 voiceInputManager.startRecording(
                                     statusCallback = { status -> Toast.makeText(context, status, Toast.LENGTH_SHORT).show() },
                                     resultCallback = { filePath ->
+                                        Log.d("MainActivity", "Voice file ready: $filePath")
                                         val uri = android.net.Uri.fromFile(File(filePath))
                                         scope.launch {
                                             val upResult = fileUploadManager.uploadFile(

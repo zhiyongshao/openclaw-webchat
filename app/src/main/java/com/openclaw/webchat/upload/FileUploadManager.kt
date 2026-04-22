@@ -39,7 +39,7 @@ class FileUploadManager {
                 return@withContext Result.failure(Exception("无效的服务器地址"))
             }
 
-            val prefs = context.getSharedPreferences("upload_prefs", Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences("openclaw_prefs", Context.MODE_PRIVATE)
             val sshHost = prefs.getString("ssh_host", host) ?: host
             val sshPort = prefs.getInt("ssh_port", DEFAULT_SCP_PORT)
             val sshUser = prefs.getString("ssh_user", DEFAULT_SSH_USER) ?: DEFAULT_SSH_USER
@@ -160,7 +160,7 @@ class FileUploadManager {
     }
 
     fun saveCredentials(context: Context, host: String, port: Int, user: String, password: String) {
-        context.getSharedPreferences("upload_prefs", Context.MODE_PRIVATE).edit().apply {
+        context.getSharedPreferences("openclaw_prefs", Context.MODE_PRIVATE).edit().apply {
             putString("ssh_host", host)
             putInt("ssh_port", port)
             putString("ssh_user", user)

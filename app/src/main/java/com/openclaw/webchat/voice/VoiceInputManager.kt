@@ -4,6 +4,7 @@ import android.app.Activity
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.net.Uri
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
@@ -35,7 +36,10 @@ class VoiceInputManager(private val activity: Activity) {
             return
         }
 
+        Log.d(TAG, "startRecording called")
+
         val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+        Log.d(TAG, "Buffer size: $bufferSize")
         if (bufferSize == AudioRecord.ERROR_BAD_VALUE || bufferSize == AudioRecord.ERROR) {
             statusCallback("录音初始化失败")
             return
@@ -50,6 +54,8 @@ class VoiceInputManager(private val activity: Activity) {
                 bufferSize * 2
             )
 
+            Log.d(TAG, "AudioRecord state: ${audioRecord?.state}")
+
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
                 statusCallback("录音初始化失败")
                 audioRecord?.release()
@@ -63,6 +69,7 @@ class VoiceInputManager(private val activity: Activity) {
 
             isRecording = true
             audioRecord?.startRecording()
+            Log.d(TAG, "Recording started")
 
             recordingThread = Thread {
                 writeAudioDataToFile(bufferSize)
@@ -72,6 +79,7 @@ class VoiceInputManager(private val activity: Activity) {
             statusCallback("正在录音...")
 
         } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException", e)
             statusCallback("没有麦克风权限")
         } catch (e: Exception) {
             Log.e(TAG, "startRecording failed", e)
@@ -83,6 +91,8 @@ class VoiceInputManager(private val activity: Activity) {
         if (!isRecording) return
         isRecording = false
 
+        Log.d(TAG, "stopRecording called")
+
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -91,14 +101,20 @@ class VoiceInputManager(private val activity: Activity) {
             recordingThread = null
 
             outputFile?.let { file ->
+                Log.d(TAG, "PCM file size: ${file.length()} bytes at ${file.absolutePath}")
                 if (file.exists() && file.length() > 44) {
                     val wavFile = File(activity.cacheDir, "voice_${System.currentTimeMillis()}.wav")
                     writeWavHeader(file, wavFile, SAMPLE_RATE, 1, 16)
+                    Log.d(TAG, "WAV file created: ${wavFile.absolutePath}, size: ${wavFile.length()}")
                     onResultCallback?.invoke(wavFile.absolutePath)
                 } else {
+                    Log.e(TAG, "PCM file invalid: exists=${file.exists()}, size=${file.length()}")
                     onStatusCallback?.invoke("录音文件无效")
                 }
-            } ?: onStatusCallback?.invoke("录音文件未创建")
+            } ?: run {
+                Log.e(TAG, "outputFile is null")
+                onStatusCallback?.invoke("录音文件未创建")
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "stopRecording failed", e)
@@ -161,6 +177,7 @@ class VoiceInputManager(private val activity: Activity) {
                 }
             }
             outputStream.flush()
+            Log.d(TAG, "writeAudioDataToFile finished, isRecording=$isRecording")
         } catch (e: Exception) {
             Log.e(TAG, "writeAudioDataToFile failed", e)
             onStatusCallback?.invoke("录音写入失败")
