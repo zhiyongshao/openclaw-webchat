@@ -488,14 +488,21 @@ class OpenClawWsClient(
             val role = msg.optString("role", "assistant")
             val content = extractText(msg.opt("content"))
             if (content.isNotBlank()) {
+                val thinking = (msg.opt("content") as? JSONArray)?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val item = arr.optJSONObject(i)
+                        if (item != null && item.optString("type") == "thinking") {
+                            return@let item.optString("thinking")
+                        }
+                    }
+                    null
+                }
                 messages.add(ChatMessage(
                     id = msg.optString("id", UUID.randomUUID().toString()),
                     role = role,
                     content = content,
                     timestamp = msg.optString("timestamp", ""),
-                    thinking = (msg.opt("content") as? JSONArray)
-                        ?.find { (it as? JSONObject)?.optString("type") == "thinking" }
-                        ?.let { (it as JSONObject).optString("thinking") }
+                    thinking = thinking
                 ))
             }
         }

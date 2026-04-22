@@ -124,7 +124,8 @@ class DeviceIdentityManager(private val context: Context) {
         val signature = try {
             val privateKeyBytes = Base64.decode(identity.privateKeyBase64, Base64.NO_WRAP)
             val messageBytes = payload.toByteArray(Charsets.UTF_8)
-            val signatureBytes = Ed25519.sign(privateKeyBytes, 0, messageBytes, 0, messageBytes.size)
+            val signatureBytes = ByteArray(64)
+            Ed25519.sign(privateKeyBytes, 0, messageBytes, 0, messageBytes.size, signatureBytes, 0)
             Base64.encodeToString(signatureBytes, Base64.NO_WRAP)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -208,19 +209,22 @@ class DeviceIdentityManager(private val context: Context) {
      * DER format: SEQUENCE { OID Ed25519, BIT STRING <32 bytes raw> }
      */
     private fun extractEd25519PublicKeyRaw(derEncoded: ByteArray): ByteArray {
-        // Skip: SEQUENCE tag+len, OID tag+len+bytes, BIT STRING tag+len
-        var offset = 0
-        offset++ // 0x30 (SEQUENCE)
-        offset += if (derEncoded[1].toInt() and 0x80 != 0) (derEncoded[1] and 0x7F).toInt() + 2 else 2
-        offset++ // 0x02 (OID INTEGER)
-        val oidLen = derEncoded[offset++].toInt() and 0xFF
-        offset += oidLen
-        offset++ // 0x03 (BIT STRING)
-        val bitStringLen = derEncoded[offset++].toInt() and 0xFF
-        offset++ // 0x00 (unused bits)
+        // DER structure:
+        // 30 [len]           - SEQUENCE
+        // 02 [len] [data]    - OID INTEGER (Ed25519 = 1.3.101.112)
+        // 03 [len] 00 [32 bytes raw key]
+        var pos = 0
+        pos++ // skip SEQUENCE tag 0x30
+        val seqLen = derEncoded[pos++].toInt() and 0xFF
+        pos++ // skip OID tag 0x02
+        val oidLen = derEncoded[pos++].toInt() and 0xFF
+        pos += oidLen // skip OID value
+        pos++ // skip BIT STRING tag 0x03
+        val bitStringLen = derEncoded[pos++].toInt() and 0xFF
+        pos++ // skip unused bits byte 0x00
 
         val rawKey = ByteArray(32)
-        System.arraycopy(derEncoded, offset, rawKey, 0, 32)
+        System.arraycopy(derEncoded, pos, rawKey, 0, 32)
         return rawKey
     }
 }
