@@ -10,11 +10,13 @@ import com.jcraft.jsch.SftpException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
  * File upload manager using SFTP via JSch to transfer files to OpenClaw host.
+ * After successful upload, notifies the OpenClaw upload-notify sidecar on port 18790.
  */
 class FileUploadManager {
 
@@ -82,21 +84,17 @@ class FileUploadManager {
             try {
                 sftp.cd(DEFAULT_UPLOAD_PATH)
             } catch (e: SftpException) {
-                // Directory doesn't exist, create it
                 val dirs = DEFAULT_UPLOAD_PATH.split("/").filter { it.isNotEmpty() }
                 var path = ""
                 for (dir in dirs) {
                     path += "/$dir"
-                    try { sftp.cd(path) } catch (ex: SftpException) {
-                        sftp.mkdir(path)
-                    }
+                    try { sftp.cd(path) } catch (ex: SftpException) { sftp.mkdir(path) }
                 }
                 sftp.cd(DEFAULT_UPLOAD_PATH)
             }
 
             Log.d(TAG, "SFTP channel connected, starting upload")
 
-            // Use put with a progress monitor
             val monitor = SimpleProgressMonitor(fileSize) { progress ->
                 onProgress("上传中... $progress%")
             }
@@ -109,7 +107,10 @@ class FileUploadManager {
 
             onProgress("完成")
             Log.d(TAG, "SUCCESS: $remotePath")
-            notifyUpload(filename, fileSize, serverUrl)
+
+            // Notify the upload-notify sidecar
+            notifyUpload(filename, fileSize, host)
+
             return@withContext Result.success(remotePath)
 
         } catch (e: Exception) {
@@ -135,6 +136,23 @@ class FileUploadManager {
         }
     }
 
+    private fun notifyUpload(filename: String, size: Long, host: String) {
+        try {
+            val url = URL("http://$host:18790/upload")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            val body = "{\"filename\":\"" + filename + "\",\"size\":" + size + ",\"source\":\"app\"}"
+            conn.outputStream.write(body.toByteArray())
+            conn.inputStream.read()
+            conn.disconnect()
+            Log.d(TAG, "Upload notify sent: $filename")
+        } catch (e: Exception) {
+            Log.d(TAG, "Upload notify failed: ${e.message}")
+        }
+    }
+
     fun saveCredentials(context: Context, host: String, port: Int, user: String, password: String) {
         context.getSharedPreferences("openclaw_prefs", Context.MODE_PRIVATE).edit().apply {
             putString("ssh_host", host)
@@ -146,29 +164,6 @@ class FileUploadManager {
     }
 }
 
-
-    /**
-     * Notify OpenClaw that a file was uploaded.
-     */
-    private fun notifyUpload(filename: String, size: Long, serverUrl: String) {
-        try {
-            val host = extractHost(serverUrl)
-            val url = URL("http://$host:18790/upload")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            conn.outputStream.write('''{"filename":"$filename","size":$size,"source":"app"}''''.toByteArray())
-            conn.inputStream.read()
-            conn.disconnect()
-        } catch (e: Exception) {
-            Log.d(TAG, "Upload notify failed: ${e.message}")
-        }
-    }
-
-/**
- * Simple progress monitor for SFTP uploads.
- */
 class SimpleProgressMonitor(private val totalSize: Long, private val onProgress: (Int) -> Unit) : com.jcraft.jsch.SftpProgressMonitor {
     private var uploaded: Long = 0
 
