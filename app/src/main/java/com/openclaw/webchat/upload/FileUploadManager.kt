@@ -135,7 +135,7 @@ class FileUploadManager {
     private fun notifyOpenClaw(host: String, filename: String, size: Long, remotePath: String) {
         try {
             val gatewayToken = context?.getSharedPreferences("openclaw_prefs", Context.MODE_PRIVATE)
-                ?.getString("gateway_token", "") ?: ""
+                ?.getString("token", "") ?: ""
             if (gatewayToken.isEmpty()) {
                 Log.d(TAG, "No gateway token, skipping notify")
                 return
