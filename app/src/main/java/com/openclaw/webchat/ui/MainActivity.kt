@@ -324,6 +324,7 @@ fun MainScreen(
     var currentUrl by remember { mutableStateOf("") }
     var pageTitle by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var isRecording by remember { mutableStateOf(false) }
     var jsErrorLog by remember { mutableStateOf("") }
     var showDebugDialog by remember { mutableStateOf(false) }
     var debugHtmlContent by remember { mutableStateOf("") }
@@ -359,8 +360,12 @@ fun MainScreen(
     ) { granted ->
         if (granted) {
             voiceInputManager.startRecording(
-                statusCallback = { status -> Toast.makeText(context, status, Toast.LENGTH_SHORT).show() },
+                statusCallback = { status ->
+                    isRecording = true
+                    Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
+                },
                 resultCallback = { filePath ->
+                    isRecording = false
                     val uri = android.net.Uri.fromFile(File(filePath))
                     scope.launch {
                         val upResult = fileUploadManager.uploadFile(
@@ -410,8 +415,12 @@ fun MainScreen(
                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                                 == PackageManager.PERMISSION_GRANTED) {
                                 voiceInputManager.startRecording(
-                                    statusCallback = { status -> Toast.makeText(context, status, Toast.LENGTH_SHORT).show() },
+                                    statusCallback = { status ->
+                                        isRecording = true
+                                        Toast.makeText(context, status, Toast.LENGTH_LONG).show()
+                                    },
                                     resultCallback = { filePath ->
+                    isRecording = false
                                         Log.d("MainActivity", "Voice file ready: $filePath")
                                         val uri = android.net.Uri.fromFile(File(filePath))
                                         scope.launch {
