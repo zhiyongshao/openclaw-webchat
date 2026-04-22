@@ -9,14 +9,15 @@ import com.jcraft.jsch.Session
 import com.jcraft.jsch.SftpException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.*
 import java.io.InputStream
-import java.io.OutputStream
-import java.net.HttpURLConnection
 import java.net.URL
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /**
  * File upload manager using SFTP via JSch to transfer files to OpenClaw host.
- * After successful upload, notifies the OpenClaw upload-notify sidecar on port 18790.
+ * After successful upload, notifies OpenClaw via WebSocket Gateway Protocol.
  */
 class FileUploadManager {
 
@@ -27,12 +28,21 @@ class FileUploadManager {
         private const val DEFAULT_UPLOAD_PATH = "/root/.openclaw/workspace/temp"
     }
 
+    private val prefs get() = context.getSharedPreferences("openclaw_prefs", Context.MODE_PRIVATE)
+
+    private var context: Context? = null
+
+    fun setContext(ctx: Context) {
+        context = ctx.applicationContext
+    }
+
     suspend fun uploadFile(
         context: Context,
         fileUri: Uri,
         serverUrl: String,
         onProgress: (String) -> Unit
     ): Result<String> = withContext(Dispatchers.IO) {
+        this@FileUploadManager.context = context.applicationContext
         try {
             val host = extractHost(serverUrl)
             if (host.isEmpty()) {
@@ -108,14 +118,78 @@ class FileUploadManager {
             onProgress("完成")
             Log.d(TAG, "SUCCESS: $remotePath")
 
-            // Notify the upload-notify sidecar
-            notifyUpload(filename, fileSize, host)
+            // Notify OpenClaw via WebSocket Gateway Protocol
+            notifyOpenClaw(host, filename, fileSize, remotePath)
 
             return@withContext Result.success(remotePath)
 
         } catch (e: Exception) {
             Log.e(TAG, "Upload FAILED", e)
             return@withContext Result.failure(e)
+        }
+    }
+
+    /**
+     * Notify OpenClaw AI that a file was uploaded.
+     * Uses the native WebSocket Gateway Protocol - no extra service needed.
+     */
+    private fun notifyOpenClaw(host: String, filename: String, size: Long, remotePath: String) {
+        try {
+            val gatewayToken = context?.getSharedPreferences("openclaw_prefs", Context.MODE_PRIVATE)
+                ?.getString("gateway_token", "") ?: ""
+            if (gatewayToken.isEmpty()) {
+                Log.d(TAG, "No gateway token, skipping notify")
+                return
+            }
+
+            val wsUrl = "ws://$host:18789/ws"
+            val client = OkHttpClient.Builder()
+                .readTimeout(5, TimeUnit.SECONDS)
+                .build()
+
+            // Build the event message per Gateway Protocol
+            val eventJson = """
+                {
+                    "type": "event",
+                    "event": "file.uploaded",
+                    "payload": {
+                        "filename": "$filename",
+                        "size": $size,
+                        "path": "$remotePath",
+                        "source": "app"
+                    },
+                    "sessionKey": "main"
+                }
+            """.trimIndent()
+
+            val request = Request.Builder()
+                .url(wsUrl)
+                .addHeader("Authorization", "Bearer $gatewayToken")
+                .build()
+
+            client.newWebSocket(request, object : WebSocketListener() {
+                override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
+                    Log.d(TAG, "WS connected, sending event")
+                    webSocket.send(eventJson)
+                    webSocket.close(1000, "done")
+                }
+
+                override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: Response?) {
+                    Log.d(TAG, "WS notify failed: ${t.message}")
+                }
+
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                    Log.d(TAG, "WS message: $text")
+                }
+
+                override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
+                    Log.d(TAG, "WS closed: $code $reason")
+                }
+            })
+
+            Log.d(TAG, "WS notify sent: $filename")
+        } catch (e: Exception) {
+            Log.d(TAG, "Notify error: ${e.message}")
         }
     }
 
@@ -133,23 +207,6 @@ class FileUploadManager {
             val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
             cursor.moveToFirst()
             if (nameIndex >= 0) cursor.getString(nameIndex) else null
-        }
-    }
-
-    private fun notifyUpload(filename: String, size: Long, host: String) {
-        try {
-            val url = URL("http://$host:18790/upload")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            val body = "{\"filename\":\"" + filename + "\",\"size\":" + size + ",\"source\":\"app\"}"
-            conn.outputStream.write(body.toByteArray())
-            conn.inputStream.read()
-            conn.disconnect()
-            Log.d(TAG, "Upload notify sent: $filename")
-        } catch (e: Exception) {
-            Log.d(TAG, "Upload notify failed: ${e.message}")
         }
     }
 
