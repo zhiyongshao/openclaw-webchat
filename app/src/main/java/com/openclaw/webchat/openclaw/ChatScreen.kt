@@ -6,11 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -89,15 +85,15 @@ fun ChatScreen(
                         Text("OpenClaw", style = MaterialTheme.typography.titleMedium)
                         Text(
                             text = when (state.connectionState) {
-                                ConnectionState.Disconnected -> "未连接"
-                                ConnectionState.Connecting -> "连接中..."
-                                ConnectionState.WaitingForPairing -> "等待配对"
-                                ConnectionState.Connected -> "已连接"
+                                ChatViewModel.ConnectionState.Disconnected -> "未连接"
+                                ChatViewModel.ConnectionState.Connecting -> "连接中..."
+                                ChatViewModel.ConnectionState.WaitingForPairing -> "等待配对"
+                                ChatViewModel.ConnectionState.Connected -> "已连接"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = when (state.connectionState) {
-                                ConnectionState.Connected -> MaterialTheme.colorScheme.primary
-                                ConnectionState.WaitingForPairing -> MaterialTheme.colorScheme.tertiary
+                                ChatViewModel.ConnectionState.Connected -> MaterialTheme.colorScheme.primary
+                                ChatViewModel.ConnectionState.WaitingForPairing -> MaterialTheme.colorScheme.tertiary
                                 else -> MaterialTheme.colorScheme.outline
                             }
                         )
@@ -147,8 +143,8 @@ fun ChatScreen(
                             .clip(androidx.compose.foundation.shape.CircleShape)
                             .background(
                                 when (state.connectionState) {
-                                    ConnectionState.Connected -> MaterialTheme.colorScheme.primary
-                                    ConnectionState.WaitingForPairing -> MaterialTheme.colorScheme.tertiary
+                                    ChatViewModel.ConnectionState.Connected -> MaterialTheme.colorScheme.primary
+                                    ChatViewModel.ConnectionState.WaitingForPairing -> MaterialTheme.colorScheme.tertiary
                                     else -> MaterialTheme.colorScheme.outline
                                 }
                             )
@@ -174,7 +170,7 @@ fun ChatScreen(
                 .padding(padding)
         ) {
             // Pairing required view
-            if (state.connectionState == ConnectionState.WaitingForPairing) {
+            if (state.connectionState == ChatViewModel.ConnectionState.WaitingForPairing) {
                 PairingCard(
                     deviceId = state.pairingDeviceId ?: "",
                     serverUrl = serverUrl,
@@ -225,7 +221,7 @@ fun ChatScreen(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (state.messages.isEmpty() && state.connectionState == ConnectionState.Connected) {
+                if (state.messages.isEmpty() && state.connectionState == ChatViewModel.ConnectionState.Connected) {
                     item {
                         EmptyChatPlaceholder(modifier = Modifier.fillMaxWidth())
                     }
@@ -272,7 +268,7 @@ fun ChatScreen(
                 onAbort = { viewModel.abort() },
                 onAttach = { imagePickerLauncher.launch("image/*") },
                 isStreaming = state.streamingSessionKey != null,
-                isConnected = state.connectionState == ConnectionState.Connected,
+                isConnected = state.connectionState == ChatViewModel.ConnectionState.Connected,
                 modifier = Modifier.fillMaxWidth()
             )
         }
