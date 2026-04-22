@@ -18,6 +18,8 @@ import javax.crypto.Cipher
  */
 class DeviceIdentityManager(private val context: Context) {
 
+    private val TAG = "DeviceIdentityMgr"
+
     companion object {
         private const val PREFS_NAME = "openclaw_device_identity"
         private const val KEY_DEVICE_ID = "device_id"
@@ -98,16 +100,29 @@ class DeviceIdentityManager(private val context: Context) {
         token: String,
         scopes: List<String>
     ): DeviceConnectField? {
-        val identity = getOrCreateDeviceIdentity() ?: return null
+        val identity = getOrCreateDeviceIdentity()
+        if (identity == null) {
+            android.util.Log.e(TAG, "signChallenge FAILED: identity is null")
+            return null
+        }
+        android.util.Log.d(TAG, "signChallenge: identity.id=${identity.id}")
+        android.util.Log.d(TAG, "signChallenge: identity.publicKeyBase64Url=${identity.publicKeyBase64Url}")
+        android.util.Log.d(TAG, "signChallenge: nonce=$nonce")
+        android.util.Log.d(TAG, "signChallenge: token=$token")
+
         val signedAt = System.currentTimeMillis()
         val scopesStr = scopes.sorted().joinToString(",")
 
         // v2 payload format (matches ClawControl exactly)
         val payload = "v2|${identity.id}|${OPENCLAW_CLIENT_ID}|${OPENCLAW_CLIENT_MODE}|${OPENCLAW_ROLE}|${scopesStr}|${signedAt}|${token}|${nonce}"
+        android.util.Log.d(TAG, "signChallenge: payload=$payload")
 
         val signature = try {
-            signWithEd25519(identity.privateKeyJwk, payload)
+            val sig = signWithEd25519(identity.privateKeyJwk, payload)
+            android.util.Log.d(TAG, "signChallenge: signature=$sig")
+            sig
         } catch (e: Exception) {
+            android.util.Log.e(TAG, "signChallenge FAILED: ${e.message}")
             e.printStackTrace()
             return null
         }
