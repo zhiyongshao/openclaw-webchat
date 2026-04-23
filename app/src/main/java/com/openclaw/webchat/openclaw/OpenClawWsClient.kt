@@ -103,7 +103,7 @@ class OpenClawWsClient(
         val wsUrl = buildWsUrl(serverUrl)
         android.util.Log.d(TAG, "Connecting to $wsUrl")
 
-        val request = Request.Builder().url(wsUrl).build()
+        val request = Request.Builder().url(wsUrl).addHeader("Origin", "http://172.16.3.16:18789").build()
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 android.util.Log.d(TAG, "WebSocket opened")
