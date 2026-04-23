@@ -390,8 +390,11 @@ class OpenClawWsClient(
             put("type", "req")
             put("id", id)
             put("method", method)
-            params?.put("params", params)
+            if (params != null) {
+                put("params", params)
+            }
         }
+        android.util.Log.d(TAG, "sendRpc: ${request.toString().take(300)}")
         webSocket?.send(request.toString())
         return id
     }
