@@ -3,16 +3,13 @@ package com.openclaw.webchat.openclaw
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
-import java.security.KeyFactory
-import java.security.KeyPair
-import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.security.Security
 
 /**
  * Manages Ed25519 device identity for OpenClaw Gateway pairing.
- * Uses BouncyCastle for Ed25519 key generation and signing (no AndroidKeyStore).
+ * Uses BouncyCastle for Ed25519 key generation and signing.
  */
 class DeviceIdentityManager(private val context: Context) {
 
@@ -30,8 +27,9 @@ class DeviceIdentityManager(private val context: Context) {
         const val OPENCLAW_ROLE = "operator"
 
         init {
+            // Register BC provider
             if (Security.getProvider("BC") == null) {
-                Security.addProvider(org.bouncycastle.jce.provider.BouncyCastleProvider())
+                Security.insertProviderAt(org.bouncycastle.jce.provider.BouncyCastleProvider(), 1)
             }
         }
     }
@@ -67,25 +65,21 @@ class DeviceIdentityManager(private val context: Context) {
 
         android.util.Log.d(TAG, "Generating new Ed25519 keypair...")
         return try {
-            // Generate Ed25519 keypair using BC
-            val kg = KeyPairGenerator.getInstance("EdDSA", "BC")
-            kg.initialize(256, SecureRandom())
-            val keyPair = kg.generateKeyPair()
+            // Use BC low-level API for Ed25519 key generation
+            val keyGen = org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator()
+            keyGen.init(org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters(SecureRandom()))
+            val keyPair = keyGen.generateKeyPair()
 
-            val publicKeyRaw = keyPair.public.encoded
-            val privateKeyRaw = keyPair.private.encoded
+            val publicKeyRaw = (keyPair.public as org.bouncycastle.crypto.params.Ed25519PublicKeyParameters).encoded
+            val privateKeyRaw = (keyPair.private as org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters).encoded
 
-            android.util.Log.d(TAG, "publicKey.encoded len=${publicKeyRaw.size}, privateKey.encoded len=${privateKeyRaw.size}")
+            android.util.Log.d(TAG, "publicKey len=${publicKeyRaw.size}, privateKey len=${privateKeyRaw.size}")
 
-            // Extract raw 32-byte keys from DER-encoded subjectPublicKeyInfo / PKCS8
-            val pubRaw = extractRawFromDer(publicKeyRaw, isPublic = true)
-            val privRaw = extractRawFromDer(privateKeyRaw, isPublic = false)
-
-            val idHash = MessageDigest.getInstance("SHA-256").digest(pubRaw)
+            val idHash = MessageDigest.getInstance("SHA-256").digest(publicKeyRaw)
             val deviceId = idHash.joinToString("") { "%02x".format(it) }
 
-            val pubBase64Url = base64urlEncode(pubRaw)
-            val privBase64Url = base64urlEncode(privRaw)
+            val pubBase64Url = base64urlEncode(publicKeyRaw)
+            val privBase64Url = base64urlEncode(privateKeyRaw)
 
             android.util.Log.d(TAG, "New identity: id=$deviceId")
             android.util.Log.d(TAG, "pubBase64Url=$pubBase64Url")
@@ -128,10 +122,11 @@ class DeviceIdentityManager(private val context: Context) {
 
         val signature: String
         try {
-            val privRaw = base64urlDecode(identity.privateKeyBase64Url)
-            val msgBytes = payload.toByteArray(Charsets.UTF_8)
-            val sigBytes = ByteArray(64)
-            org.bouncycastle.math.ec.rfc8032.Ed25519.sign(privRaw, 0, msgBytes, 0, msgBytes.size, sigBytes, 0)
+            val privKeyParams = org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters(base64urlDecode(identity.privateKeyBase64Url), 0)
+            val signer = org.bouncycastle.crypto.signers.Ed25519Signer()
+            signer.init(true, privKeyParams)
+            signer.update(payload.toByteArray(Charsets.UTF_8), 0, payload.length)
+            val sigBytes = signer.generateSignature()
             signature = base64urlEncode(sigBytes)
             android.util.Log.d(TAG, "signChallenge: signature=$signature")
         } catch (e: Exception) {
@@ -168,46 +163,6 @@ class DeviceIdentityManager(private val context: Context) {
     // ─────────────────────────────────────────────────────────────
     // Private helpers
     // ─────────────────────────────────────────────────────────────
-
-    private fun extractRawFromDer(der: ByteArray, isPublic: Boolean): ByteArray {
-        // DER structure for Ed25519 public key (subjectPublicKeyInfo):
-        // SEQUENCE { OID(1.3.101.112) BIT STRING<raw 32 bytes> }
-        // DER structure for Ed25519 private key (PKCS8):
-        // SEQUENCE { INTEGER(0) OCTET STRING(32) [0](BIT STRING pubKey) }
-        var pos = 0
-        pos++ // SEQUENCE tag (0x30)
-        val seqLen = der[pos++].toInt() and 0xFF
-        if (seqLen > 0x80) pos++ // long length
-
-        if (isPublic) {
-            // Public key: after SEQUENCE, skip OID INTEGER, then BIT STRING
-            pos++ // INTEGER tag (0x02)
-            val oidLen = der[pos++].toInt() and 0xFF
-            pos += oidLen
-            pos++ // BIT STRING tag (0x03)
-            val bitLen = der[pos++].toInt() and 0xFF
-            if (bitLen > 0x80) pos++ // long length
-            pos++ // unused bits byte (0x00)
-        } else {
-            // Private key: after SEQUENCE, INTEGER(0), OCTET STRING(32)
-            pos++ // INTEGER tag (0x02)
-            val zeroLen = der[pos++].toInt() and 0xFF
-            pos += zeroLen
-            pos++ // OCTET STRING tag (0x04)
-            val octetLen = der[pos++].toInt() and 0xFF
-            if (octetLen > 0x80) {
-                val numBytes = octetLen and 0x7F
-                var len = 0
-                for (i in 0 until numBytes) len = (len shl 8) or (der[pos++].toInt() and 0xFF)
-                pos += len
-            }
-            // pos now at the raw 32-byte private key
-        }
-
-        val raw = ByteArray(32)
-        System.arraycopy(der, pos, raw, 0, 32)
-        return raw
-    }
 
     private fun base64urlEncode(bytes: ByteArray): String {
         return Base64.encodeToString(bytes, Base64.NO_WRAP)
