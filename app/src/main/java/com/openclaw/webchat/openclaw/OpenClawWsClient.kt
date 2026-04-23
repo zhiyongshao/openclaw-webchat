@@ -232,7 +232,7 @@ class OpenClawWsClient(
 
         if (json.optBoolean("ok")) {
             val payload = json.optJSONObject("payload")
-            android.util.Log.d(TAG, "handleResponse OK: payload=" + str(payload))
+            android.util.Log.d(TAG, "handleResponse OK: payload=" + payload)
 
             // Check for hello-ok (successful connect)
             if (!isAuthenticated && payload?.optString("type") == "hello-ok") {
