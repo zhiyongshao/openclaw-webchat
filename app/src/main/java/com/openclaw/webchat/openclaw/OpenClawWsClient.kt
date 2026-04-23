@@ -217,6 +217,16 @@ class OpenClawWsClient(
             "tick" -> {
                 // Server tick - connection is alive
             }
+            "hello-ok" -> {
+                // Successful connect event (not an RPC response)
+                if (!isAuthenticated) {
+                    isAuthenticated = true
+                    reconnectAttempts = 0
+                    serverVersion = payload.optString("runtimeVersion", null)
+                    android.util.Log.d(TAG, "hello-ok received! Authenticated. Server: $serverVersion")
+                    emitToListener("connected", payload)
+                }
+            }
             else -> {
                 emitToListener(event, payload)
             }
