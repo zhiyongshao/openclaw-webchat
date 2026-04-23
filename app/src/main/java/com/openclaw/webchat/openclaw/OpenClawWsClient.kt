@@ -232,6 +232,7 @@ class OpenClawWsClient(
 
         if (json.optBoolean("ok")) {
             val payload = json.optJSONObject("payload")
+            android.util.Log.d(TAG, "handleResponse OK: payload=" + str(payload))
 
             // Check for hello-ok (successful connect)
             if (!isAuthenticated && payload?.optString("type") == "hello-ok") {
@@ -246,6 +247,7 @@ class OpenClawWsClient(
         } else {
             val errorCode = json.optJSONObject("error")?.optString("code") ?: ""
             val errorMsg = json.optJSONObject("error")?.optString("message") ?: "Unknown error"
+            android.util.Log.e(TAG, "handleResponse ERROR: code=" + errorCode + " msg=" + errorMsg)
 
             if (errorCode == "NOT_PAIRED") {
                 emitToListener("pairingRequired", JSONObject()
