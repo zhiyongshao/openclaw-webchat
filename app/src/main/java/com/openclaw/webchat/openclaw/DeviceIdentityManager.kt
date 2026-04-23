@@ -114,7 +114,7 @@ class DeviceIdentityManager(private val context: Context) {
         android.util.Log.d(TAG, "signChallenge: id=${identity.id}, nonce=$nonce")
 
         val signedAt = System.currentTimeMillis()
-        val scopesStr = scopes.sorted().joinToString(",")
+        val scopesStr = scopes.joinToString(",")  // Declaration order, matches ClawControl
 
         // v2 payload format (matches ClawControl exactly)
         val payload = "v2|${identity.id}|${OPENCLAW_CLIENT_ID}|${OPENCLAW_CLIENT_MODE}|${OPENCLAW_ROLE}|${scopesStr}|${signedAt}|${token}|${nonce}"
