@@ -22,7 +22,7 @@ class DeviceIdentityManager(private val context: Context) {
         private const val KEY_PRIVATE_KEY = "private_key"   // base64url raw 32 bytes
         private const val KEY_DEVICE_TOKEN = "device_token"
 
-        const val OPENCLAW_CLIENT_ID = "openclaw-webchat"
+        const val OPENCLAW_CLIENT_ID = "openclaw-control-ui"
         const val OPENCLAW_CLIENT_MODE = "ui"
         const val OPENCLAW_ROLE = "operator"
 
