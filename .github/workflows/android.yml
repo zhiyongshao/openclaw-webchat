@@ -37,18 +37,18 @@ jobs:
         run: |
           ./gradlew assembleDebug --no-daemon 2>&1 | tail -30
 
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-webchat-debug
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
       - name: Upload debug APK to server
+        continue-on-error: true
         run: |
           apt-get update -qq && apt-get install -y -qq openssh-client sshpass > /dev/null 2>&1
           sshpass -p 'ghost' scp -o StrictHostKeyChecking=no \
             app/build/outputs/apk/debug/*.apk \
             tom@172.16.2.52:/usr/share/caddy/openclaw-webchat-debug.apk
           echo "APK uploaded successfully"
-
-      - name: Upload debug APK (fallback artifact)
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: openclaw-webchat-debug
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 1
