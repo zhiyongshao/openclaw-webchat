@@ -103,7 +103,9 @@ class OpenClawWsClient(
         val wsUrl = buildWsUrl(serverUrl)
         android.util.Log.d(TAG, "Connecting to $wsUrl")
 
-        val request = Request.Builder().url(wsUrl).addHeader("Origin", "http://172.16.3.16:18789").build()
+        val originHeader = "http://172.16.3.16:18789"
+        val request = Request.Builder().url(wsUrl).addHeader("Origin", originHeader).addHeader("Host", "172.16.3.16:18789").build()
+        android.util.Log.d(TAG, "WS Request: url=$wsUrl origin=$originHeader")
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 android.util.Log.d(TAG, "WebSocket opened")
@@ -292,20 +294,19 @@ class OpenClawWsClient(
                 put("mode", DeviceIdentityManager.OPENCLAW_CLIENT_MODE)
             })
             put("caps", JSONArray(listOf("tool-events", "thinking-events", "plugin-approvals")))
-            if (authToken.isNotEmpty()) {
-                put("auth", JSONObject().put("token", authToken))
-            }
-            deviceField?.let { dev ->
-                put("device", JSONObject().apply {
-                    put("id", dev.id)
+            put("auth", JSONObject().apply {
+                put("token", authToken)
+                deviceField?.let { dev ->
+                    put("deviceId", dev.id)
                     put("publicKey", dev.publicKey)
                     put("signature", dev.signature)
                     put("signedAt", dev.signedAt)
                     put("nonce", dev.nonce)
-                })
-            }
+                }
+            })
         }
 
+        android.util.Log.d(TAG, "performHandshake auth: ${params.optJSONObject("auth")}")
         sendRpc("connect", params)
     }
 
