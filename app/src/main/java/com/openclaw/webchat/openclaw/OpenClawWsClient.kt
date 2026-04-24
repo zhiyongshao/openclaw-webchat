@@ -221,13 +221,13 @@ class OpenClawWsClient(
             }
             "hello-ok" -> {
                 // Successful connect event (not an RPC response)
-                if (!isAuthenticated) {
-                    isAuthenticated = true
-                    reconnectAttempts = 0
-                    serverVersion = payload.optString("runtimeVersion", null)
-                    android.util.Log.d(TAG, "hello-ok received! Authenticated. Server: $serverVersion")
-                    emitToListener("connected", payload)
-                }
+                val wasAuth = isAuthenticated
+                isAuthenticated = true
+                reconnectAttempts = 0
+                serverVersion = payload.optString("runtimeVersion", null)
+                android.util.Log.d(TAG, "hello-ok! wasAuth=$wasAuth Server: $serverVersion")
+                // Always emit connected (even on reconnect, for UI state update)
+                emitToListener("connected", payload)
             }
             else -> {
                 emitToListener(event, payload)
