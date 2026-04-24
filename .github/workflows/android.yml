@@ -30,6 +30,14 @@ jobs:
           api-level: 34
           build-tools: '34.0.0'
 
+      - name: Debug SDK paths
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la "$ANDROID_HOME/" 2>/dev/null || echo "ANDROID_HOME not found"
+          ls -la "$ANDROID_HOME/build-tools/" 2>/dev/null || echo "build-tools not found"
+          ls -la "$ANDROID_HOME/platforms/" 2>/dev/null || echo "platforms not found"
+
       - name: Setup Gradle
         run: |
           chmod +x gradlew
@@ -37,10 +45,11 @@ jobs:
 
       - name: Build debug APK
         run: |
-          ./gradlew clean assembleDebug --no-daemon 2>&1
+          ./gradlew clean assembleDebug --no-daemon 2>&1 | tail -80
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: openclaw-webchat-debug
           path: app/build/outputs/apk/debug/*.apk
