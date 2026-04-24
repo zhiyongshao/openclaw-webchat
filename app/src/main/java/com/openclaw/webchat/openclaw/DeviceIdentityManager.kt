@@ -15,43 +15,36 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 /**
  * Manages Ed25519 device identity for OpenClaw Gateway pairing.
- * Uses BouncyCastle low-level Ed25519 API (compatible with Go crypto).
+ * Uses BouncyCastle low-level Ed25519 API (RFC 8032 compliant).
  * 
- * IMPORTANT: Clears any stale AndroidKeyStore v3 identity on init,
- * ensuring fresh Ed25519 keypair generated with BC.
+ * Compatibility note: BC Ed25519Signer uses pure Ed25519 mode,
+ * compatible with Go crypto/ed25519. Signatures are 64 bytes.
  */
 class DeviceIdentityManager(private val context: Context) {
 
     private val TAG = "DeviceIdentityMgr"
 
     companion object {
-        private const val PREFS_NAME = "openclaw_device_identity_v2"
+        private const val PREFS_NAME = "openclaw_device_identity_bc"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_PUBLIC_KEY = "public_key"    // base64url raw 32 bytes
         private const val KEY_PRIVATE_KEY = "private_key" // base64url raw 32 bytes
-        private const val KEY_LEGACY_V3 = "identity_v3_used"
 
         const val OPENCLAW_CLIENT_ID = "openclaw-control-ui"
         const val OPENCLAW_CLIENT_MODE = "ui"
         const val OPENCLAW_ROLE = "operator"
 
         init {
+            // Ensure BC is registered as the crypto provider
             if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
                 Security.insertProviderAt(BouncyCastleProvider(), 1)
             }
+            android.util.Log.d(TAG, "BC provider registered. Version: " + 
+                Security.getProvider(BouncyCastleProvider.PROVIDER_NAME)?.versionString ?: "unknown")
         }
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-    init {
-        // Clear stale AndroidKeyStore-based v3 identity if it exists
-        // (v3 used AndroidKeyStore which may have failed on Android 10)
-        if (prefs.getBoolean(KEY_LEGACY_V3, false)) {
-            android.util.Log.w(TAG, "Clearing stale AndroidKeyStore v3 identity")
-            clearIdentity()
-        }
-    }
 
     data class DeviceIdentity(
         val id: String,
@@ -68,11 +61,8 @@ class DeviceIdentityManager(private val context: Context) {
     )
 
     /**
-     * Get or create device identity.
-     * Uses BC Ed25519 low-level API — compatible with Go crypto/ed25519.
-     * 
-     * Key format: raw 32-byte scalars (NOT DER-encoded).
-     * This is what Ed25519PrivateKeyParameters.encoded / Ed25519PublicKeyParameters.encoded returns.
+     * Generate Ed25519 keypair using BC low-level API.
+     * Keys are stored as raw 32-byte values (not DER-encoded).
      */
     fun getOrCreateDeviceIdentity(): DeviceIdentity? {
         val storedId = prefs.getString(KEY_DEVICE_ID, null)
@@ -93,11 +83,11 @@ class DeviceIdentityManager(private val context: Context) {
             val pubKeyParams = keyPair.public as Ed25519PublicKeyParameters
             val privKeyParams = keyPair.private as Ed25519PrivateKeyParameters
 
-            // BC .encoded returns raw 32-byte key (scalar for priv, u coordinate for pub)
+            // .encoded returns raw 32-byte values
             val publicKeyRaw = pubKeyParams.encoded
             val privateKeyRaw = privKeyParams.encoded
 
-            android.util.Log.d(TAG, "Generated: pubKey len=${publicKeyRaw.size}, privKey len=${privateKeyRaw.size}")
+            android.util.Log.d(TAG, "BC keygen: pub=${publicKeyRaw.size} bytes, priv=${privateKeyRaw.size} bytes")
 
             val idHash = MessageDigest.getInstance("SHA-256").digest(publicKeyRaw)
             val deviceId = idHash.joinToString("") { "%02x".format(it) }
@@ -105,29 +95,27 @@ class DeviceIdentityManager(private val context: Context) {
             val pubBase64Url = base64urlEncode(publicKeyRaw)
             val privBase64Url = base64urlEncode(privateKeyRaw)
 
-            android.util.Log.d(TAG, "New BC identity: id=$deviceId")
-            android.util.Log.d(TAG, "pubBase64Url=$pubBase64Url")
-
             prefs.edit()
                 .putString(KEY_DEVICE_ID, deviceId)
                 .putString(KEY_PUBLIC_KEY, pubBase64Url)
                 .putString(KEY_PRIVATE_KEY, privBase64Url)
-                .putBoolean(KEY_LEGACY_V3, false)
                 .apply()
+
+            android.util.Log.d(TAG, "New BC identity: $deviceId")
+            android.util.Log.d(TAG, "pubBase64Url: $pubBase64Url")
+            android.util.Log.d(TAG, "privBase64Url stored (len=${privBase64Url.length})")
 
             DeviceIdentity(deviceId, pubBase64Url, privBase64Url)
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "getOrCreateDeviceIdentity FAILED: ${e.message}")
-            e.printStackTrace()
+            android.util.Log.e(TAG, "KeyGen FAILED: ${e.message}", e)
             null
         }
     }
 
     /**
-     * Sign the challenge payload using BC Ed25519Signer.
-     * Output is 64-byte raw Ed25519 signature, base64url encoded.
-     * 
-     * Compatible with Go crypto/ed25519 signature verification.
+     * Sign the challenge payload.
+     * Uses BC Ed25519Signer in pure Ed25519 mode (RFC 8032).
+     * Signature is 64 bytes, base64url encoded.
      */
     fun signChallenge(
         nonce: String,
@@ -136,23 +124,20 @@ class DeviceIdentityManager(private val context: Context) {
     ): DeviceConnectField? {
         val identity = getOrCreateDeviceIdentity()
         if (identity == null) {
-            android.util.Log.e(TAG, "signChallenge FAILED: identity is null")
+            android.util.Log.e(TAG, "signChallenge: identity is null")
             return null
         }
-        android.util.Log.d(TAG, "signChallenge: id=${identity.id}, nonce=$nonce")
 
         val signedAt = System.currentTimeMillis()
         val scopesStr = scopes.joinToString(",")
 
-        // v2 payload format (matches ClawControl exactly)
-        val payload = "v2|${identity.id}|${OPENCLAW_CLIENT_ID}|${OPENCLAW_CLIENT_MODE}|${OPENCLAW_ROLE}|${scopesStr}|${signedAt}|${token}|${nonce}"
-        android.util.Log.d(TAG, "signChallenge: payload=$payload")
+        val payload = "v2|${identity.id}|${OPENCLAW_CLIENT_ID}|${OPENCLAW_CLIENT_MODE}|${OPENCLAW_ROLE}|${scopesStr}|${signedAt}|${token}|$nonce"
+        android.util.Log.d(TAG, "signChallenge payload: $payload")
 
         val signature: String
         try {
-            // Decode stored raw 32-byte private key
             val privKeyBytes = base64urlDecode(identity.privateKeyBase64Url)
-            android.util.Log.d(TAG, "privKey bytes len=${privKeyBytes.size}")
+            android.util.Log.d(TAG, "signChallenge: decoded privKey len=${privKeyBytes.size}")
 
             val privKeyParams = Ed25519PrivateKeyParameters(privKeyBytes, 0)
             val signer = Ed25519Signer()
@@ -163,8 +148,7 @@ class DeviceIdentityManager(private val context: Context) {
             signature = base64urlEncode(sigBytes)
             android.util.Log.d(TAG, "signChallenge: sig len=${sigBytes.size}, sig=$signature")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "signChallenge FAILED: ${e.message}")
-            e.printStackTrace()
+            android.util.Log.e(TAG, "signChallenge EXCEPTION: ${e.javaClass.simpleName}: ${e.message}", e)
             return null
         }
 
@@ -178,17 +162,12 @@ class DeviceIdentityManager(private val context: Context) {
     }
 
     fun clearIdentity() {
-        prefs.edit()
-            .remove(KEY_DEVICE_ID)
-            .remove(KEY_PUBLIC_KEY)
-            .remove(KEY_PRIVATE_KEY)
-            .remove(KEY_LEGACY_V3)
-            .apply()
+        prefs.edit().clear().apply()
         android.util.Log.d(TAG, "Identity cleared")
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Private helpers
+    // Helpers
     // ─────────────────────────────────────────────────────────────
 
     private fun base64urlEncode(bytes: ByteArray): String {

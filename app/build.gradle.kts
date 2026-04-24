@@ -80,6 +80,8 @@ dependencies {
 
     // BouncyCastle for Ed25519 device identity
     implementation("org.bouncycastle:bcprov-jdk15on:1.70")
+    // SpongyCastle - BC Android-compatible build (try as fallback)
+    implementation("com.github.nicobao:spongycastle-android:1.58.0.0")
 
     // JSch for SCP file upload
     implementation("com.github.mwiede:jsch:0.2.18")
