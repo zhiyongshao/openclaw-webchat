@@ -160,6 +160,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             error = null
         )
         client.connect()
+        // Wait for handshake completion before returning
+        // This ensures listeners are registered before hello-ok fires
+        client.waitForHandshake()
     }
 
     fun disconnect() {

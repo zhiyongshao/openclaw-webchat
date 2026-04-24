@@ -6,9 +6,9 @@ import android.util.Base64
 import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * OpenClaw Gateway WebSocket Client
@@ -61,6 +61,9 @@ class OpenClawWsClient(
     @Volatile var isConnectedSynchronized = false
         private set
 
+    private var handshakeLatch: CountDownLatch? = null
+    private val handshakeCompleted = AtomicBoolean(false)
+
     @Volatile var defaultSessionKey = "main"
     
     // Server info
@@ -100,6 +103,8 @@ class OpenClawWsClient(
     // ─────────────────────────────────────────────────────────────
 
     fun connect() {
+        handshakeLatch = CountDownLatch(1)
+        handshakeCompleted.set(false)
         disconnectInternal(reconnect = false)
 
         val wsUrl = buildWsUrl(serverUrl)
@@ -135,6 +140,10 @@ class OpenClawWsClient(
                 emitToListener("error", JSONObject().put("message", t.message))
             }
         })
+    }
+
+    fun waitForHandshake() {
+        handshakeLatch?.await(10, TimeUnit.SECONDS)
     }
 
     fun disconnect() {
@@ -222,9 +231,11 @@ class OpenClawWsClient(
                 // Server tick - connection is alive
             }
             "hello-ok" -> {
-                // Successful connect event (not an RPC response)
+                // Wait for handshake to complete before emitting connected
+                handshakeLatch?.await(5, TimeUnit.SECONDS)
                 val wasAuth = isAuthenticated
                 isConnectedSynchronized = true
+                handshakeCompleted.set(true)
                 isAuthenticated = true
                 reconnectAttempts = 0
                 serverVersion = payload.optString("runtimeVersion", null)
