@@ -292,21 +292,17 @@ class OpenClawWsClient(
                 put("mode", DeviceIdentityManager.OPENCLAW_CLIENT_MODE)
             })
             put("caps", JSONArray(listOf("tool-events", "thinking-events", "plugin-approvals")))
-            // Merge auth token AND device identity into the same auth object
-            // Gateway reads deviceId/publicKey/signature from auth.* (not from top-level device)
-            if (authToken.isNotEmpty() || deviceField != null) {
-                val authObj = JSONObject()
-                if (authToken.isNotEmpty()) {
-                    authObj.put("token", authToken)
-                }
-                deviceField?.let { dev ->
-                    authObj.put("deviceId", dev.id)
-                    authObj.put("publicKey", dev.publicKey)
-                    authObj.put("signature", dev.signature)
-                    authObj.put("signedAt", dev.signedAt)
-                    authObj.put("nonce", dev.nonce)
-                }
-                put("auth", authObj)
+            if (authToken.isNotEmpty()) {
+                put("auth", JSONObject().put("token", authToken))
+            }
+            deviceField?.let { dev ->
+                put("device", JSONObject().apply {
+                    put("id", dev.id)
+                    put("publicKey", dev.publicKey)
+                    put("signature", dev.signature)
+                    put("signedAt", dev.signedAt)
+                    put("nonce", dev.nonce)
+                })
             }
         }
 
