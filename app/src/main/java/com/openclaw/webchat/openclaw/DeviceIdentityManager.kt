@@ -39,7 +39,7 @@ class DeviceIdentityManager(private val context: Context) {
             if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
                 Security.insertProviderAt(BouncyCastleProvider(), 1)
             }
-            android.util.Log.d(TAG, "BC provider registered.")
+            android.util.Log.d("DeviceIdentityMgr", "BC provider registered.")
         }
     }
 
