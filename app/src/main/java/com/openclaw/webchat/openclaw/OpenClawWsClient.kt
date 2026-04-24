@@ -58,6 +58,8 @@ class OpenClawWsClient(
         private set
     @Volatile var isConnected = false
         private set
+    @Volatile var isConnectedSynchronized = false
+        private set
 
     @Volatile var defaultSessionKey = "main"
     
@@ -222,6 +224,7 @@ class OpenClawWsClient(
             "hello-ok" -> {
                 // Successful connect event (not an RPC response)
                 val wasAuth = isAuthenticated
+                isConnectedSynchronized = true
                 isAuthenticated = true
                 reconnectAttempts = 0
                 serverVersion = payload.optString("runtimeVersion", null)

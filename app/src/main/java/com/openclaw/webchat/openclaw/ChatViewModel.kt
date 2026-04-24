@@ -65,6 +65,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun initialize(serverUrl: String, token: String) {
         identityManager = DeviceIdentityManager(getApplication())
         wsClient = OpenClawWsClient(serverUrl, token, identityManager)
+
+        // Fallback: if hello-ok already fired before listeners were registered, sync state
+        wsClient?.let { client ->
+            if (client.isConnectedSynchronized) {
+                _state.value = _state.value.copy(
+                    connectionState = ConnectionState.Connected,
+                    pairingUrl = null,
+                    pairingDeviceId = null,
+                    error = null
+                )
+            }
+        }
+
         setupListeners()
     }
 
