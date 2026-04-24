@@ -24,15 +24,11 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Try to ensure Android SDK build-tools
-        run: |
-          # Try to pre-install build-tools to avoid download during build
-          if [ -d "$ANDROID_HOME/build-tools" ]; then
-            echo "Android SDK build-tools found:"
-            ls "$ANDROID_HOME/build-tools/"
-          fi
-          # Set ANDROID_SDK_ROOT to help Gradle find SDK
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v2
+        with:
+          api-level: 34
+          build-tools: '34.0.0'
 
       - name: Setup Gradle
         run: |
