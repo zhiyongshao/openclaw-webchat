@@ -2,103 +2,120 @@ package com.openclaw.webchat.openclaw
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import android.util.Base64
-import java.security.KeyPairGenerator
 import java.security.MessageDigest
-import java.security.Signature
+import java.security.SecureRandom
 import java.security.Security
+import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
+import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
+import org.bouncycastle.crypto.signers.Ed25519Signer
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 /**
  * Manages Ed25519 device identity for OpenClaw Gateway pairing.
- * Uses Android native EdDSA (via AndroidKeyStore) instead of BouncyCastle.
- * Android 10+ required for EdDSA support.
+ * Uses BouncyCastle low-level Ed25519 API (compatible with Go crypto).
+ * 
+ * IMPORTANT: Clears any stale AndroidKeyStore v3 identity on init,
+ * ensuring fresh Ed25519 keypair generated with BC.
  */
 class DeviceIdentityManager(private val context: Context) {
 
     private val TAG = "DeviceIdentityMgr"
 
     companion object {
-        private const val PREFS_NAME = "openclaw_device_identity_v3"
+        private const val PREFS_NAME = "openclaw_device_identity_v2"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_PUBLIC_KEY = "public_key"    // base64url raw 32 bytes
-        private const val KEY_ALIAS = "openclaw_ed25519_device_key"
+        private const val KEY_PRIVATE_KEY = "private_key" // base64url raw 32 bytes
+        private const val KEY_LEGACY_V3 = "identity_v3_used"
 
         const val OPENCLAW_CLIENT_ID = "openclaw-control-ui"
         const val OPENCLAW_CLIENT_MODE = "ui"
         const val OPENCLAW_ROLE = "operator"
+
+        init {
+            if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+                Security.insertProviderAt(BouncyCastleProvider(), 1)
+            }
+        }
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    init {
+        // Clear stale AndroidKeyStore-based v3 identity if it exists
+        // (v3 used AndroidKeyStore which may have failed on Android 10)
+        if (prefs.getBoolean(KEY_LEGACY_V3, false)) {
+            android.util.Log.w(TAG, "Clearing stale AndroidKeyStore v3 identity")
+            clearIdentity()
+        }
+    }
+
     data class DeviceIdentity(
         val id: String,
-        val publicKeyBase64Url: String,  // base64url, raw 32 bytes
-        val alias: String                  // AndroidKeyStore key alias
+        val publicKeyBase64Url: String,
+        val privateKeyBase64Url: String
     )
 
     data class DeviceConnectField(
         val id: String,
-        val publicKey: String,   // base64url raw
-        val signature: String,   // base64url
+        val publicKey: String,
+        val signature: String,
         val signedAt: Long,
         val nonce: String
     )
 
     /**
      * Get or create device identity.
-     * Uses AndroidKeyStore for key storage and signing (native EdDSA).
+     * Uses BC Ed25519 low-level API — compatible with Go crypto/ed25519.
+     * 
+     * Key format: raw 32-byte scalars (NOT DER-encoded).
+     * This is what Ed25519PrivateKeyParameters.encoded / Ed25519PublicKeyParameters.encoded returns.
      */
     fun getOrCreateDeviceIdentity(): DeviceIdentity? {
         val storedId = prefs.getString(KEY_DEVICE_ID, null)
         val storedPub = prefs.getString(KEY_PUBLIC_KEY, null)
-        val storedAlias = prefs.getString(KEY_ALIAS, null)
+        val storedPriv = prefs.getString(KEY_PRIVATE_KEY, null)
 
-        if (storedId != null && storedPub != null && storedAlias != null) {
-            // Verify the key still exists in AndroidKeyStore
-            val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-            if (ks.containsAlias(storedAlias)) {
-                android.util.Log.d(TAG, "Loaded existing identity: $storedId")
-                return DeviceIdentity(storedId, storedPub, storedAlias)
-            }
-            android.util.Log.d(TAG, "Key missing from AndroidKeyStore, regenerating...")
+        if (storedId != null && storedPub != null && storedPriv != null) {
+            android.util.Log.d(TAG, "Loaded existing BC identity: $storedId")
+            return DeviceIdentity(storedId, storedPub, storedPriv)
         }
 
-        android.util.Log.d(TAG, "Generating new EdDSA keypair via AndroidKeyStore...")
+        android.util.Log.d(TAG, "Generating new Ed25519 keypair with BC...")
         return try {
-            val keyPairGen = KeyPairGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore"
-            )
+            val keyGen = Ed25519KeyPairGenerator()
+            keyGen.init(Ed25519KeyGenerationParameters(SecureRandom()))
+            val keyPair = keyGen.generateKeyPair()
 
-            val builder = KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
-                KeyProperties.PURPOSE_SIGN
-            )
-                .setKeySize(256)
-                .setDigests(KeyProperties.DIGEST_NONE)
-                // EdDSA does not use digests
+            val pubKeyParams = keyPair.public as Ed25519PublicKeyParameters
+            val privKeyParams = keyPair.private as Ed25519PrivateKeyParameters
 
-            keyPairGen.initialize(builder.build())
-            val keyPair = keyPairGen.generateKeyPair()
+            // BC .encoded returns raw 32-byte key (scalar for priv, u coordinate for pub)
+            val publicKeyRaw = pubKeyParams.encoded
+            val privateKeyRaw = privKeyParams.encoded
 
-            // Export public key in raw 32-byte format
-            val publicKey = keyPair.public as java.security.interfaces.ECPublicKey
-            // Get the EC public key point and extract raw 32-byte x coordinate
-            val sp = publicKey.encoded
-            val rawPublicKey = extractRawPublicKeyFromSpki(sp)
-            val deviceId = sha256Hex(rawPublicKey)
+            android.util.Log.d(TAG, "Generated: pubKey len=${publicKeyRaw.size}, privKey len=${privateKeyRaw.size}")
 
-            android.util.Log.d(TAG, "New identity: id=$deviceId")
-            android.util.Log.d(TAG, "publicKey spki len=${sp.size}, raw len=${rawPublicKey.size}")
+            val idHash = MessageDigest.getInstance("SHA-256").digest(publicKeyRaw)
+            val deviceId = idHash.joinToString("") { "%02x".format(it) }
+
+            val pubBase64Url = base64urlEncode(publicKeyRaw)
+            val privBase64Url = base64urlEncode(privateKeyRaw)
+
+            android.util.Log.d(TAG, "New BC identity: id=$deviceId")
+            android.util.Log.d(TAG, "pubBase64Url=$pubBase64Url")
 
             prefs.edit()
                 .putString(KEY_DEVICE_ID, deviceId)
-                .putString(KEY_PUBLIC_KEY, base64urlEncode(rawPublicKey))
-                .putString(KEY_ALIAS, KEY_ALIAS)
+                .putString(KEY_PUBLIC_KEY, pubBase64Url)
+                .putString(KEY_PRIVATE_KEY, privBase64Url)
+                .putBoolean(KEY_LEGACY_V3, false)
                 .apply()
 
-            DeviceIdentity(deviceId, base64urlEncode(rawPublicKey), KEY_ALIAS)
+            DeviceIdentity(deviceId, pubBase64Url, privBase64Url)
         } catch (e: Exception) {
             android.util.Log.e(TAG, "getOrCreateDeviceIdentity FAILED: ${e.message}")
             e.printStackTrace()
@@ -107,7 +124,10 @@ class DeviceIdentityManager(private val context: Context) {
     }
 
     /**
-     * Sign the challenge payload using AndroidKeyStore EdDSA.
+     * Sign the challenge payload using BC Ed25519Signer.
+     * Output is 64-byte raw Ed25519 signature, base64url encoded.
+     * 
+     * Compatible with Go crypto/ed25519 signature verification.
      */
     fun signChallenge(
         nonce: String,
@@ -130,10 +150,16 @@ class DeviceIdentityManager(private val context: Context) {
 
         val signature: String
         try {
-            val sig = Signature.getInstance("EdDSA", "AndroidKeyStore")
-            sig.initSign(getPrivateKey(identity.alias))
-            sig.update(payload.toByteArray(Charsets.UTF_8))
-            val sigBytes = sig.sign()
+            // Decode stored raw 32-byte private key
+            val privKeyBytes = base64urlDecode(identity.privateKeyBase64Url)
+            android.util.Log.d(TAG, "privKey bytes len=${privKeyBytes.size}")
+
+            val privKeyParams = Ed25519PrivateKeyParameters(privKeyBytes, 0)
+            val signer = Ed25519Signer()
+            signer.init(true, privKeyParams)
+            signer.update(payload.toByteArray(Charsets.UTF_8), 0, payload.length)
+            val sigBytes = signer.generateSignature()
+
             signature = base64urlEncode(sigBytes)
             android.util.Log.d(TAG, "signChallenge: sig len=${sigBytes.size}, sig=$signature")
         } catch (e: Exception) {
@@ -151,57 +177,12 @@ class DeviceIdentityManager(private val context: Context) {
         )
     }
 
-    private fun getPrivateKey(alias: String): java.security.PrivateKey {
-        val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        return ks.getKey(alias, null) as java.security.PrivateKey
-    }
-
-    /**
-     * Extract raw 32-byte public key from SPKI DER encoding.
-     * Format: SEQUENCE { OID(1.2.840.10045.2.1) [1](BIT STRING raw) }
-     * The BIT STRING contains the uncompressed EC point: 0x04 || x || y (65 bytes)
-     * Ed25519 public key is the x coordinate (32 bytes).
-     */
-    private fun extractRawPublicKeyFromSpki(spki: ByteArray): ByteArray {
-        var pos = 0
-        pos++ // SEQUENCE tag (0x30)
-        val seqLen = spki[pos++].toInt() and 0xFF
-        if (seqLen > 0x80) pos += (seqLen and 0x7F) // long length
-        pos++ // OID tag (0x06)
-        val oidLen = spki[pos++].toInt() and 0xFF
-        pos += oidLen // skip OID
-        pos++ // BIT STRING tag (0x03)
-        val bitLen = spki[pos++].toInt() and 0xFF
-        if (bitLen > 0x80) {
-            val numBytes = bitLen and 0x7F
-            var len = 0
-            for (i in 0 until numBytes) len = (len shl 8) or (spki[pos++].toInt() and 0xFF)
-        }
-        pos++ // skip unused bits byte (0x00)
-        // pos now at the raw public key point
-        // Ed25519: skip 0x04 prefix (1 byte), next 32 bytes are x coordinate
-        val raw = ByteArray(32)
-        System.arraycopy(spki, pos + 1, raw, 0, 32)
-        return raw
-    }
-
-    private fun sha256Hex(data: ByteArray): String {
-        return MessageDigest.getInstance("SHA-256").digest(data).joinToString("") { "%02x".format(it) }
-    }
-
     fun clearIdentity() {
-        try {
-            val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-            if (ks.containsAlias(KEY_ALIAS)) {
-                ks.deleteEntry(KEY_ALIAS)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
         prefs.edit()
             .remove(KEY_DEVICE_ID)
             .remove(KEY_PUBLIC_KEY)
-            .remove(KEY_ALIAS)
+            .remove(KEY_PRIVATE_KEY)
+            .remove(KEY_LEGACY_V3)
             .apply()
         android.util.Log.d(TAG, "Identity cleared")
     }
