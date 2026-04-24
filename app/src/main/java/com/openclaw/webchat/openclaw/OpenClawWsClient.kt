@@ -602,11 +602,21 @@ class OpenClawWsClient(
     }
 
     private fun emitToListener(event: String, payload: JSONObject) {
+        android.util.Log.d(TAG, "[DEBUG] emitToListener CALLED: event=$event listenersCount=${listeners[event]?.size ?: 0}")
         handler.post {
+            android.util.Log.d(TAG, "[DEBUG] emitToListener handler.post executed for: $event")
             listeners[event]?.forEach { listener ->
-                try { listener(payload) } catch (e: Exception) { e.printStackTrace() }
-            }
+                try { 
+                    android.util.Log.d(TAG, "[DEBUG] Calling listener for event=$event")
+                    listener(payload)
+                    android.util.Log.d(TAG, "[DEBUG] Listener done for event=$event")
+                } catch (e: Exception) { 
+                    android.util.Log.e(TAG, "[DEBUG] Listener exception: ${e.message}")
+                    e.printStackTrace() 
+                }
+            } ?: android.util.Log.d(TAG, "[DEBUG] No listeners for event=$event")
         }
+        android.util.Log.d(TAG, "[DEBUG] emitToListener handler.post enqueued for: $event")
     }
 
     private fun rejectAllPending(reason: String) {
