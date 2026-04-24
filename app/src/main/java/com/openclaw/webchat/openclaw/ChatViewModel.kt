@@ -85,7 +85,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val client = wsClient ?: return
 
         client.on("connected") { payload ->
+            android.util.Log.d(TAG, "[DEBUG] connected listener FIRED! payload=$payload")
             Log.d(TAG, "Connected to OpenClaw")
+            android.util.Log.d(TAG, "[DEBUG] About to update _state.connectionState to Connected")
+            _state.value = _state.value.copy(
+                connectionState = ConnectionState.Connected,
+                pairingUrl = null,
+                pairingDeviceId = null,
+                error = null
+            )
+            android.util.Log.d(TAG, "[DEBUG] _state.connectionState is now: ${_state.value.connectionState}")
             _state.value = _state.value.copy(
                 connectionState = ConnectionState.Connected,
                 pairingUrl = null,

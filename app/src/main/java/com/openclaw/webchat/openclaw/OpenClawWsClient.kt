@@ -231,8 +231,10 @@ class OpenClawWsClient(
                 // Server tick - connection is alive
             }
             "hello-ok" -> {
+                android.util.Log.d(TAG, "[DEBUG] hello-ok event handler entered, latch.count=${handshakeLatch?.count ?: -1}")
                 // Wait for handshake to complete before emitting connected
-                handshakeLatch?.await(5, TimeUnit.SECONDS)
+                val latchWait = handshakeLatch?.await(5, TimeUnit.SECONDS)
+                android.util.Log.d(TAG, "[DEBUG] latch.await result=$latchWait")
                 val wasAuth = isAuthenticated
                 isConnectedSynchronized = true
                 handshakeCompleted.set(true)
