@@ -40,8 +40,8 @@ jobs:
           ./gradlew assembleDebug --no-daemon 2>&1 | tail -30
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: openclaw-webchat-debug
+          name: openclaw-webchat-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
