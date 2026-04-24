@@ -301,14 +301,16 @@ class OpenClawWsClient(
             put("caps", JSONArray(listOf("tool-events", "thinking-events", "plugin-approvals")))
             put("auth", JSONObject().apply {
                 put("token", authToken)
-                deviceField?.let { dev ->
-                    put("deviceId", dev.id)
+            })
+            deviceField?.let { dev ->
+                put("device", JSONObject().apply {
+                    put("id", dev.id)
                     put("publicKey", dev.publicKey)
                     put("signature", dev.signature)
                     put("signedAt", dev.signedAt)
                     put("nonce", dev.nonce)
-                }
-            })
+                })
+            }
         }
 
         android.util.Log.d(TAG, "performHandshake auth: ${params.optJSONObject("auth")}")
