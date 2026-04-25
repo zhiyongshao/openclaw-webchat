@@ -103,8 +103,6 @@ class OpenClawWsClient(
     // ─────────────────────────────────────────────────────────────
 
     fun connect() {
-        handshakeLatch = CountDownLatch(1)
-        handshakeCompleted.set(false)
         disconnectInternal(reconnect = false)
 
         val wsUrl = buildWsUrl(serverUrl)
@@ -231,13 +229,8 @@ class OpenClawWsClient(
                 // Server tick - connection is alive
             }
             "hello-ok" -> {
-                android.util.Log.d(TAG, "[DEBUG] hello-ok event handler entered, latch.count=${handshakeLatch?.count ?: -1}")
-                // Wait for handshake to complete before emitting connected
-                val latchWait = handshakeLatch?.await(5, TimeUnit.SECONDS)
-                android.util.Log.d(TAG, "[DEBUG] latch.await result=$latchWait")
                 val wasAuth = isAuthenticated
                 isConnectedSynchronized = true
-                handshakeCompleted.set(true)
                 isAuthenticated = true
                 reconnectAttempts = 0
                 serverVersion = payload.optString("runtimeVersion", null)

@@ -87,7 +87,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         client.on("connected") { payload ->
             android.util.Log.d(TAG, "[DEBUG] connected listener FIRED! payload=$payload")
             Log.d(TAG, "Connected to OpenClaw")
-            android.util.Log.d(TAG, "[DEBUG] About to update _state.connectionState to Connected")
             _state.value = _state.value.copy(
                 connectionState = ConnectionState.Connected,
                 pairingUrl = null,
@@ -169,9 +168,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             error = null
         )
         client.connect()
-        // Wait for handshake completion before returning
-        // This ensures listeners are registered before hello-ok fires
-        client.waitForHandshake()
     }
 
     fun disconnect() {
