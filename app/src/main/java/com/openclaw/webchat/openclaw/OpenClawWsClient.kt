@@ -118,7 +118,12 @@ class OpenClawWsClient(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                android.util.Log.d(TAG, "onMessage text received, len=${text.length}")
                 handleMessage(text)
+            }
+
+            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                android.util.Log.d(TAG, "onMessage BINARY received, len=${bytes.size}, hex=${bytes.hex()}")
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -200,15 +205,17 @@ class OpenClawWsClient(
     // ─────────────────────────────────────────────────────────────
 
     private fun handleMessage(text: String) {
+        android.util.Log.d(TAG, "handleMessage called, text_len=${text.length}, first_200=${text.substring(0, minOf(200, text.length))}")
         try {
             val json = JSONObject(text)
+            android.util.Log.d(TAG, "handleMessage parsed JSON, type=${json.optString(\"type\")}, event=${json.optString(\"event\")}")
             when (json.optString("type")) {
                 "event" -> handleEvent(json)
                 "res" -> handleResponse(json)
                 else -> android.util.Log.w(TAG, "Unknown msg type: ${json.optString("type")}")
             }
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Parse error: ${e.message}")
+            android.util.Log.e(TAG, "Parse error: ${e.message}, text=${text.substring(0, minOf(100, text.length))}")
         }
     }
 
