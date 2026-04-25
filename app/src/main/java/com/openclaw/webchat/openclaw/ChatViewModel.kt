@@ -31,7 +31,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val messages: List<ChatMessageUi> = emptyList(),
         val currentText: String = "",
         val streamingSessionKey: String? = null,
-        val sessions: List<OpenClawWsClient.SessionInfo> = emptyList(),
+        val sessions: List<JavaWebSocketClient.SessionInfo> = emptyList(),
         val pairingUrl: String? = null,
         val pairingDeviceId: String? = null,
         val error: String? = null
@@ -55,7 +55,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    private var wsClient: OpenClawWsClient? = null
+    private var wsClient: JavaWebSocketClient? = null
     private lateinit var identityManager: DeviceIdentityManager
 
     // ─────────────────────────────────────────────────────────────
@@ -64,11 +64,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun initialize(serverUrl: String, token: String) {
         identityManager = DeviceIdentityManager(getApplication())
-        wsClient = OpenClawWsClient(serverUrl, token, identityManager)
+        wsClient = JavaWebSocketClient(serverUrl, token, identityManager)
 
         // Fallback: if hello-ok already fired before listeners were registered, sync state
         wsClient?.let { client ->
-            if (client.isConnectedSynchronized) {
+            if (client.isAuthenticated) {
                 _state.value = _state.value.copy(
                     connectionState = ConnectionState.Connected,
                     pairingUrl = null,
@@ -227,8 +227,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadHistory() {
         val client = wsClient ?: return
-        client.getHistory(client.defaultSessionKey, object : (Result<List<OpenClawWsClient.ChatMessage>>) -> Unit {
-            override fun invoke(r: Result<List<OpenClawWsClient.ChatMessage>>) {
+        client.getSessionMessages(client.defaultSessionKey, object : (Result<List<JavaWebSocketClient.ChatMessage>>) -> Unit {
+            override fun invoke(r: Result<List<JavaWebSocketClient.ChatMessage>>) {
                 r.fold(
                     onSuccess = { msgs -> 
                         val uiMsgs = msgs.map { 
@@ -244,8 +244,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun listSessions() {
         val client = wsClient ?: return
-        client.listSessions(object : (Result<List<OpenClawWsClient.SessionInfo>>) -> Unit {
-            override fun invoke(r: Result<List<OpenClawWsClient.SessionInfo>>) {
+        client.listSessions(object : (Result<List<JavaWebSocketClient.SessionInfo>>) -> Unit {
+            override fun invoke(r: Result<List<JavaWebSocketClient.SessionInfo>>) {
                 r.fold(
                     onSuccess = { sessions ->
                         _state.value = _state.value.copy(sessions = sessions)

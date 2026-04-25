@@ -78,6 +78,9 @@ dependencies {
     // OkHttp for WebSocket and HTTP
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // Java-WebSocket (replaces OkHttp WebSocket for better frame handling)
+    implementation("org.java-websocket:Java-WebSocket:1.5.4")
+
     // BouncyCastle for Ed25519 device identity
     implementation("org.bouncycastle:bcprov-jdk15on:1.70")
 
