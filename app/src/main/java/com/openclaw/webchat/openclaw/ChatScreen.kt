@@ -156,6 +156,25 @@ fun ChatScreen(
                     }) {
                         Icon(Icons.Default.Refresh, "重连")
                     }
+                    // Toggle working process visibility
+                    IconButton(onClick = { viewModel.toggleWorkingProcess() }) {
+                        Icon(
+                            imageVector = if (state.showWorkingProcess) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                            contentDescription = "切换工作过程",
+                            tint = if (state.showWorkingProcess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    // Clear chat history
+                    if (state.messages.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearMessages() }) {
+                            Icon(
+                                Icons.Default.DeleteSweep,
+                                contentDescription = "清除历史",
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
 
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.ExitToApp, "退出")

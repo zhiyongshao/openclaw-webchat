@@ -34,7 +34,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val sessions: List<OpenClawWsClient.SessionInfo> = emptyList(),
         val pairingUrl: String? = null,
         val pairingDeviceId: String? = null,
-        val error: String? = null
+        val error: String? = null,
+        val showWorkingProcess: Boolean = false
     )
 
     enum class ConnectionState {
@@ -298,6 +299,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearError() {
         _state.value = _state.value.copy(error = null)
+    }
+
+    fun clearMessages() {
+        _state.value = _state.value.copy(messages = emptyList())
+    }
+
+    fun toggleWorkingProcess() {
+        _state.value = _state.value.copy(showWorkingProcess = !_state.value.showWorkingProcess)
     }
 
     fun switchSession(sessionKey: String) {
